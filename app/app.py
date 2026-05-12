@@ -54,6 +54,7 @@ app = dash.Dash(
     ],
 )
 app.title = DASHBOARD_CONFIG["title"]
+server = app.server
 
 # ============================================================================
 # NAV ITEMS
@@ -309,4 +310,4 @@ def update_topbar_badges(competition, season):
 
 if __name__ == "__main__":
     logger.info(f"Starting {DASHBOARD_CONFIG['title']}")
-    app.run(debug=False, host="127.0.0.1", port=8050)
+    app.run(debug=False, host="127.0.0.1", port=8051)
