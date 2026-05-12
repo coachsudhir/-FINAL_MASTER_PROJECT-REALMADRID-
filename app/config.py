@@ -23,6 +23,8 @@ def _resolve_data_root() -> Path:
     candidates = [
         # Workspace root when running from dashboard/app
         PROJECT_ROOT.parent,
+        # data/ subfolder inside repo (for deployment bundles)
+        PROJECT_ROOT / "data",
         # Dashboard root (if data copied inside repo)
         PROJECT_ROOT,
         # Legacy absolute location on this machine

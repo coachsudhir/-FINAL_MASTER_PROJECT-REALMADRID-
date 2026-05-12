@@ -9,7 +9,7 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
-      # Set DATA_ROOT to the folder that contains: LaLiga/, Copa del Rey/, UEFA Champions League/
-      # If you commit these folders at repo root, this can stay as /opt/render/project/src.
+      # DATA_ROOT points to the folder containing: LaLiga/, Copa del Rey/, UEFA Champions League/
+      # data/ subfolder is committed to the repo with only Real Madrid match files
       - key: DATA_ROOT
-        value: /opt/render/project/src
+        value: /opt/render/project/src/data
