@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: real-madrid-tactical-dashboard
+    env: python
+    plan: free
+    autoDeploy: true
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --workers 2 --timeout 120 --bind 0.0.0.0:$PORT app.app:app.server
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      # Set DATA_ROOT to the folder that contains: LaLiga/, Copa del Rey/, UEFA Champions League/
+      # If you commit these folders at repo root, this can stay as /opt/render/project/src.
+      - key: DATA_ROOT
+        value: /opt/render/project/src
