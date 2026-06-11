@@ -10,7 +10,7 @@ import pandas as pd
 from functools import lru_cache
 
 from config import COLOR_SCHEME
-from utils.data_helpers import get_competition_options, get_season_options, get_team_options
+from utils.data_helpers import get_competition_options, get_season_options
 from utils.data_loader import (
     calc_season_kpis,
     get_season_match_list,
@@ -129,8 +129,8 @@ def layout(competition="LaLiga", season="2025-2026"):
                 dbc.Col([
                     html.Label("Rivals", className="filter-label"),
                     dcc.Dropdown(id="bm-rivals",
-                                 options=get_team_options("LaLiga", "2025-2026"),
-                                 value=["Barcelona", "Atlético Madrid"],
+                                 options=[],  # populated from match data by _rivals_options
+                                 value=["Barcelona", "Atlético de Madrid"],
                                  multi=True,
                                  clearable=True),
                 ], md=4),
@@ -558,8 +558,17 @@ def _range_opts(competition, season):
     Input("bm-compare-season", "value"),
 )
 def _rivals_options(competition, season):
-    opts = get_team_options(competition or "LaLiga", season or "2025-2026")
-    return [o for o in opts if "real madrid" not in _norm_team_name(o["label"])]
+    # Derive rival options from the match data itself (teams RM faced) rather than
+    # from equipos/ folders — so it works from the bundled, RM-only data on a fresh
+    # clone instead of listing only Real Madrid.
+    comp = competition or "LaLiga"
+    seas = season or "2025-2026"
+    team_df = _league_team_table(comp, seas)
+    if team_df.empty:
+        return []
+    teams = sorted(t for t in team_df["team"].unique()
+                   if "realmadrid" not in _norm_team_name(t))
+    return [{"label": t, "value": t} for t in teams]
 
 
 @callback(
