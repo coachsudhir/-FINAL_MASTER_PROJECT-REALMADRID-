@@ -261,3 +261,15 @@ LOG_CONFIG = {
         }
     },
 }
+
+# ============================================================================
+# NON-DESTRUCTIVE TACTICAL INTELLIGENCE OVERLAY FLAGS
+# ============================================================================
+OVERLAY_FEATURE_FLAGS = {
+    "ENABLE_SUB_PHASE_TAGGING": False,
+    "ENABLE_ADVANCED_KPI_LAYER": False,
+    "ENABLE_CROSS_PHASE_METRICS": False,
+    "ENABLE_SEQUENCE_ENRICHMENT": False,
+    "ENABLE_OPPONENT_ADJUSTMENTS": False,
+    "ENABLE_GAMESTATE_ADJUSTMENTS": False,
+}

@@ -6,6 +6,7 @@ Main Application Entry Point — v2.0 Professional UI
 import sys
 import logging
 import logging.config
+import os
 from pathlib import Path
 from datetime import datetime
 
@@ -71,10 +72,10 @@ NAV_ITEMS = [
 
 
 # ============================================================================
-# SIDEBAR
+# TOP MENU
 # ============================================================================
 
-def create_sidebar_full():
+def create_top_menu():
     comp_opts   = get_competition_options()
     season_opts = get_season_options("LaLiga")
 
@@ -83,12 +84,12 @@ def create_sidebar_full():
             [html.Span(i["icon"], className="rm-nav-icon"), html.Span(i["label"])],
             href=i["href"],
             active="exact",
-            className="rm-nav-link",
+            className="rm-top-nav-link",
         )
         for i in NAV_ITEMS
     ]
 
-    return dbc.Col(
+    return html.Div(
         html.Div(
             [
                 html.Div(
@@ -107,25 +108,23 @@ def create_sidebar_full():
                         ],
                         className="d-flex align-items-center gap-2",
                     ),
-                    className="rm-sidebar-header",
+                    className="rm-top-menu-brand",
                 ),
                 html.Div(
                     [
-                        html.Div("Navigation", className="rm-sidebar-section-label"),
-                        dbc.Nav(nav_links, vertical=True),
+                        dbc.Nav(nav_links, className="rm-top-menu-nav"),
                     ],
-                    className="rm-sidebar-section",
+                    className="rm-top-menu-links",
                 ),
                 html.Div(
                     [
-                        html.Span("Quick Filters", className="rm-sidebar-filter-label"),
                         html.Label("Competition", className="rm-sidebar-filter-label"),
                         dcc.Dropdown(
                             id="global-competition-dropdown",
                             options=comp_opts,
                             value="LaLiga",
                             clearable=False,
-                            className="mb-2",
+                            className="rm-top-filter-dropdown",
                         ),
                         html.Label("Season", className="rm-sidebar-filter-label"),
                         dcc.Dropdown(
@@ -133,26 +132,22 @@ def create_sidebar_full():
                             options=season_opts,
                             value="2025-2026",
                             clearable=False,
+                            className="rm-top-filter-dropdown",
                         ),
                     ],
-                    className="rm-sidebar-filters",
+                    className="rm-top-menu-filters",
                 ),
                 html.Div(
                     [
-                        html.P("Master's Final Project", className="text-xs mb-0",
-                               style={"color": "#94a3b8"}),
-                        html.P(f"Updated {datetime.now().strftime('%d %b %Y')}",
-                               className="text-xs mb-0", style={"color": "#94a3b8"}),
+                        html.P("Sudhir Dahiya", className="rm-author-name mb-0"),
+                        html.P("Master's in Sports Analytics (2025–2026)",
+                               className="rm-author-course mb-0"),
                     ],
-                    style={"padding": "12px 16px",
-                           "borderTop": "1px solid rgba(255,255,255,0.08)"},
+                    className="rm-top-menu-meta",
                 ),
             ],
-            className="rm-sidebar",
-            style={"height": "100vh", "overflowY": "auto"},
+            className="rm-top-menu",
         ),
-        width=2,
-        className="p-0",
     )
 
 
@@ -165,53 +160,57 @@ app.layout = html.Div(
         dcc.Location(id="url", refresh=False),
         dcc.Store(id="session-store", storage_type="session"),
 
-        dbc.Row(
-            [
-                create_sidebar_full(),
+        create_top_menu(),
 
-                dbc.Col(
-                    [
-                        # Topbar
+        # Topbar
+        html.Div(
+            dbc.Row(
+                [
+                    dbc.Col(
+                        html.Div(id="page-breadcrumb",
+                                 className="text-sm text-muted"),
+                        width="auto",
+                    ),
+                    dbc.Col(
                         html.Div(
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        html.Div(id="page-breadcrumb",
-                                                 className="text-sm text-muted"),
-                                        width="auto",
-                                    ),
-                                    dbc.Col(
-                                        html.Div(
-                                            id="topbar-badges",
-                                            className="d-flex align-items-center justify-content-end",
-                                            children=[
-                                                html.Span("2025-2026",
-                                                          className="rm-badge rm-badge-blue me-2"),
-                                                html.Span("LaLiga",
-                                                          className="rm-badge rm-badge-green"),
-                                            ],
-                                        ),
-                                    ),
-                                ],
-                                className="align-items-center",
-                            ),
-                            className="rm-filter-bar",
+                            id="topbar-badges",
+                            className="d-flex align-items-center justify-content-end",
+                            children=[
+                                html.Span("2025-2026",
+                                          className="rm-badge rm-badge-blue me-2"),
+                                html.Span("LaLiga",
+                                          className="rm-badge rm-badge-green"),
+                            ],
                         ),
+                    ),
+                ],
+                className="align-items-center",
+            ),
+            className="rm-filter-bar",
+        ),
 
-                        # Page content with loading
-                        dcc.Loading(
-                            html.Div(id="page-content", className="page-content"),
-                            type="circle",
-                            color="#1d4ed8",
-                            delay_show=200,
-                        ),
-                    ],
-                    width=10,
-                    className="p-0",
-                ),
+        # Page content with loading
+        dcc.Loading(
+            html.Div(id="page-content", className="page-content"),
+            type="circle",
+            color="#1d4ed8",
+            delay_show=200,
+        ),
+
+        # Persistent author attribution (visible on every page)
+        html.Footer(
+            [
+                html.Span("Real Madrid CF Tactical & Player Performance Analytics",
+                          className="rm-footer-title"),
+                html.Span("•", className="rm-footer-dot"),
+                html.Span("Sudhir Dahiya", className="rm-footer-author"),
+                html.Span("•", className="rm-footer-dot"),
+                html.Span("Master's in Sports Analytics (2025–2026)",
+                          className="rm-footer-course"),
+                html.Span("•", className="rm-footer-dot"),
+                html.Span("Data: Opta Stats Perform", className="rm-footer-meta"),
             ],
-            className="g-0",
-            style={"minHeight": "100vh"},
+            className="rm-footer",
         ),
     ],
 )
@@ -234,28 +233,35 @@ CRUMB_MAP = {
     Output("page-content",    "children"),
     Output("page-breadcrumb", "children"),
     Input("url", "pathname"),
+    Input("global-competition-dropdown", "value"),
+    Input("global-season-dropdown",      "value"),
 )
-def display_page(pathname):
+def display_page(pathname, g_comp, g_season):
+    # Global Competition/Season filters drive every page: changing either
+    # re-renders the active page seeded with the global selection, so all
+    # KPIs, charts and tactical visuals update reactively (no stale state).
+    g_comp   = g_comp or "LaLiga"
+    g_season = g_season or "2025-2026"
     breadcrumb = html.Span(CRUMB_MAP.get(pathname, "Dashboard"), className="fw-700")
 
     if pathname in ("/", "/home", None):
         from pages.home import layout
-        return layout(), breadcrumb
+        return layout(g_comp, g_season), breadcrumb
     elif pathname == "/match-analysis":
         from pages.match_analysis import layout
-        return layout(), breadcrumb
+        return layout(g_comp, g_season), breadcrumb
     elif pathname == "/player-analysis":
         from pages.player_analysis import layout
-        return layout(), breadcrumb
+        return layout(g_comp, g_season), breadcrumb
     elif pathname == "/tactical-phases":
         from pages.tactical_phases import layout
-        return layout(), breadcrumb
+        return layout(g_comp, g_season), breadcrumb
     elif pathname == "/opponent-analysis":
         from pages.opponent_analysis import layout
-        return layout(), breadcrumb
+        return layout(g_comp, g_season), breadcrumb
     elif pathname == "/benchmarking":
         from pages.benchmarking import layout
-        return layout(), breadcrumb
+        return layout(g_comp, g_season), breadcrumb
     else:
         return (
             dbc.Alert("404 – Page not found.", color="danger", className="m-4"),
@@ -310,4 +316,5 @@ def update_topbar_badges(competition, season):
 
 if __name__ == "__main__":
     logger.info(f"Starting {DASHBOARD_CONFIG['title']}")
-    app.run(debug=False, host="127.0.0.1", port=8051)
+    app.run(debug=False, host="127.0.0.1", port=int(os.getenv("PORT", "8050")))
+

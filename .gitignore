@@ -47,3 +47,6 @@ flask_session/
 
 # Large raw data — keep only the bundled data/ folder
 # Do NOT ignore: data/
+
+# Editor backups
+*.bak
