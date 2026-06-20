@@ -96,56 +96,59 @@ Divides football into four distinct tactical moments:
 
 ### Project Structure
 ```
-/dashboard
-├── app/
-│   ├── app.py                 # Main Dash application
-│   ├── config.py              # Configuration and constants
-│   ├── pages/
-│   │   ├── home.py
-│   │   ├── match_analysis.py
-│   │   ├── player_analysis.py
-│   │   ├── tactical_phases.py
-│   │   ├── opponent_analysis.py
-│   │   └── benchmarking.py
-│   ├── components/
-│   │   ├── callbacks.py        # Dash callbacks (reactive logic)
-│   │   └── filters.py          # Filter components
-│   ├── utils/
-│   │   ├── data_loader.py      # Data loading and preprocessing
-│   │   └── visualization.py    # Plotly visualizations
-│   ├── models/
-│   │   ├── tactical_classifier.py
-│   │   └── player_analyzer.py
-│   └── assets/                # CSS, fonts, images
-├── requirements.txt            # Python dependencies
-└── README.md                   # This file
+<repo root>
+├── wsgi.py                      # Gunicorn entrypoint (loads dashboard/app)
+├── render.yaml                  # Render deployment blueprint
+├── requirements.txt            # Python dependencies (Render installs this)
+├── README.md                   # This file
+└── dashboard/
+    ├── app/
+    │   ├── app.py               # Main Dash application (exposes `server`)
+    │   ├── config.py            # Configuration + data-root resolver
+    │   ├── pages/               # Multi-page layouts + callbacks
+    │   │   ├── home.py
+    │   │   ├── match_analysis.py
+    │   │   ├── player_analysis.py
+    │   │   ├── tactical_phases.py
+    │   │   ├── opponent_analysis.py
+    │   │   └── benchmarking.py
+    │   ├── utils/
+    │   │   ├── data_loader.py    # Opta event parsing, xG, KPIs (single source)
+    │   │   ├── data_helpers.py   # Match/team/season helpers
+    │   │   └── phase_scoring.py  # Tactical phase model
+    │   ├── models/              # Tactical classifier
+    │   └── assets/              # custom.css, crest, fonts
+    └── data/                    # CANONICAL clean dataset (see Data Structure)
 ```
 
+> **Single source of truth:** the only application code is `dashboard/app/`, and
+> the only dataset is `dashboard/data/`. There are no duplicate app/data copies.
+
 ### Technology Stack
-- **Frontend**: Dash (interactive web framework)
-- **Visualizations**: Plotly (interactive charts), mplsoccer (football pitch)
+- **Framework**: Dash + dash-bootstrap-components (reactive web app)
+- **Visualizations**: Plotly (interactive charts, pitch maps)
 - **Data Processing**: Pandas, NumPy
-- **Analytics**: SciPy, scikit-learn, statsmodels
-- **Server**: Python with Gunicorn (production)
+- **Geometry**: SciPy (`ConvexHull` for team-shape on position maps)
+- **Server**: Gunicorn (production WSGI)
 
 ## Installation & Setup
 
 ### Prerequisites
-- Python 3.8+
-- pip or conda
-- Access to data files in `/Users/sudhirdahiya/Downloads/FINAL_MASTER_PROJECT(REALMADRID)/`
+- Python 3.11 (matches the Render runtime)
+- pip
 
-### Installation Steps
+### Run locally
 
-1. **Clone or navigate to project**
+1. **Clone the repository**
 ```bash
-cd /Users/sudhirdahiya/Downloads/FINAL_MASTER_PROJECT(REALMADRID)/dashboard
+git clone https://github.com/coachsudhir/-FINAL_MASTER_PROJECT-REALMADRID-.git
+cd -FINAL_MASTER_PROJECT-REALMADRID-
 ```
 
-2. **Create virtual environment** (recommended)
+2. **Create a virtual environment**
 ```bash
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+python3 -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 ```
 
 3. **Install dependencies**
@@ -153,16 +156,23 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-4. **Run the dashboard**
+4. **Run the dashboard** (either option works)
 ```bash
-cd app
-python app.py
+# Option A — run the app module directly (dev server, hot reload)
+cd dashboard/app && python app.py
+
+# Option B — run exactly as production does (from the repo root)
+gunicorn --bind 0.0.0.0:8050 wsgi:server
 ```
 
 5. **Access the dashboard**
-- Open browser to: `http://localhost:8050`
-- Navigate using sidebar menu
-- Use global filters (season, competition) at top
+- Open `http://localhost:8050`
+- Navigate via the top menu (Overview, Match Analysis, Player Analysis,
+  Tactical Phases, Opponent Scout, Benchmarking)
+- Use the global Competition / Season filters in the header
+
+> The data root is auto-detected (it resolves to `dashboard/data`). To point at a
+> different dataset, set the `DATA_ROOT` environment variable.
 
 ## Configuration
 
@@ -336,19 +346,37 @@ Accent Colors:
 
 ### Development
 ```bash
-python app/app.py  # Runs on localhost:8050 with hot reload
+cd dashboard/app && python app.py     # localhost:8050, hot reload
 ```
 
 ### Production (Gunicorn)
 ```bash
-gunicorn -w 4 -b 0.0.0.0:8050 app.app:server
+gunicorn --workers 2 --timeout 120 --bind 0.0.0.0:$PORT wsgi:server
 ```
 
+### Deploy on Render (Community / Free tier)
+
+The repo ships a `render.yaml` blueprint, so deployment is one click:
+
+1. Push to GitHub (already configured: `origin/main`).
+2. In the [Render dashboard](https://dashboard.render.com) → **New → Blueprint**,
+   connect this repository. Render reads `render.yaml` automatically.
+3. Render provisions a Python web service with:
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `gunicorn --workers 2 --timeout 120 --bind 0.0.0.0:$PORT wsgi:server`
+   - **Env:** `PYTHON_VERSION=3.11.9`, `DATA_ROOT=/opt/render/project/src/dashboard/data`
+4. `autoDeploy: true` — every push to `main` redeploys automatically.
+5. The live URL appears as `https://real-madrid-tactical-dashboard.onrender.com`
+   (name from `render.yaml`; the exact subdomain is shown in Render).
+
+No manual settings are required — everything is declared in `render.yaml`.
+The bundled `dashboard/data` (Real Madrid matches, all competitions/seasons,
+verified 0 corrupt) is committed, so no external data source is needed.
+
 ### Environment Variables
-```bash
-export FLASK_ENV=production
-export DATA_PATH=/path/to/data
-```
+- `DATA_ROOT` *(optional)* — absolute path to a folder containing
+  `LaLiga/`, `Copa del Rey/`, `UEFA Champions League/`. Defaults to the bundled
+  `dashboard/data`. Set automatically on Render.
 
 ## Troubleshooting
 
@@ -479,9 +507,8 @@ For issues, questions, or suggestions:
 - [ ] Python 3.8+ installed
 - [ ] Virtual environment created
 - [ ] Dependencies installed (`pip install -r requirements.txt`)
-- [ ] Data files accessible in correct paths
-- [ ] config.py paths verified
-- [ ] Dashboard running (`python app/app.py`)
+- [ ] Bundled dataset present at `dashboard/data/`
+- [ ] Dashboard running (`cd dashboard/app && python app.py`)
 - [ ] Accessed at `http://localhost:8050`
 - [ ] All pages loading correctly
 - [ ] Filters responding to changes
