@@ -439,6 +439,16 @@ def layout(competition="LaLiga", season="2025-2026"):
         html.P("Squad Performance Summary", className="section-header"),
         dcc.Loading(html.Div(id="pa-squad-table"), type="circle", color=_RM),
 
+        # Chance Creator %
+        dbc.Card([
+            dbc.CardHeader("Chance Creator % — Player Key Passes / Team Total Key Passes"),
+            dbc.CardBody(dcc.Loading(
+                dcc.Graph(id="pa2-chance-creator",
+                          config={"displayModeBar": False, "responsive": True}),
+                type="circle", color=_RM,
+            )),
+        ], className="mb-3 mt-3"),
+
         # Player deep-dive charts
         html.P("Player Deep Dive", className="section-header"),
         dcc.Loading(html.Div(id="pa-player-section"), type="circle", color=_RM),
@@ -773,3 +783,69 @@ def _player_deep_dive(competition, season, player_name, from_match, to_match):
                                    config={"displayModeBar": False, "responsive": True}))
         ], className="mb-3"),
     ])
+
+
+# ── Chance Creator % (pa2-) ────────────────────────────────────────────────────
+
+@callback(
+    Output("pa2-chance-creator", "figure"),
+    Input("pa-competition", "value"),
+    Input("pa-season", "value"),
+    Input("pa-from-match", "value"),
+    Input("pa-to-match", "value"),
+)
+def _chance_creator_pa(competition, season, from_match, to_match):
+    comp = competition or "LaLiga"
+    seas = season or "2025-2026"
+    selected_files = _selected_file_set(comp, seas, from_match, to_match)
+
+    stats = _build_season_player_stats(comp, seas, selected_files=selected_files)
+    empty = go.Figure()
+    empty.update_layout(
+        paper_bgcolor=_C["surface"], plot_bgcolor=_C["surface"],
+        font=dict(color=_C["text_primary"], size=11),
+        height=_H_CHART, title="No player data available",
+    )
+
+    if stats.empty or "key_passes" not in stats.columns:
+        return empty
+
+    total_kp = int(stats["key_passes"].sum()) + int(stats["assists"].sum())
+    if total_kp == 0:
+        empty.add_annotation(x=0.5, y=0.5, xref="paper", yref="paper",
+                             text="No key pass / assist data for this selection.",
+                             showarrow=False, font=dict(size=13, color=_C["text_secondary"]))
+        return empty
+
+    df = stats[["player_name", "key_passes", "assists"]].copy()
+    df["total"] = df["key_passes"] + df["assists"]
+    df["chance_pct"] = (df["total"] / total_kp * 100).round(1)
+    df = df[df["total"] > 0].sort_values("total", ascending=True).tail(15)
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=df["key_passes"], y=df["player_name"],
+        name="Key Passes", orientation="h",
+        marker_color=_RM,
+        text=df["key_passes"], textposition="inside",
+    ))
+    fig.add_trace(go.Bar(
+        x=df["assists"], y=df["player_name"],
+        name="Assists", orientation="h",
+        marker_color=_C["accent_red"],
+        text=df["assists"], textposition="inside",
+    ))
+    fig.update_layout(
+        paper_bgcolor=_C["surface"], plot_bgcolor=_C["surface"],
+        font=dict(color=_C["text_primary"], size=11),
+        height=max(300, 36 * len(df) + 100),
+        title=f"Chance Creator % (of {total_kp} total key pass / assist events) — {comp} {seas}",
+        barmode="stack",
+        margin=dict(l=140, r=40, t=60, b=40),
+        xaxis=dict(title="Count", gridcolor=_C["border"], automargin=True),
+        yaxis=dict(automargin=True),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1,
+                    bgcolor="rgba(0,0,0,0)"),
+        uniformtext_minsize=9, uniformtext_mode="hide",
+    )
+    return fig

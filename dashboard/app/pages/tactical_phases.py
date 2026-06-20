@@ -267,6 +267,23 @@ def layout(competition="LaLiga", season="2025-2026"):
             ),
         ], className="mb-3"),
 
+        # ── Press Classification (tp2-) ──────────────────────────────────────
+        dbc.Card([
+            dbc.CardHeader([
+                html.Span("Press Classification", className="fw-bold me-2"),
+                html.Span(
+                    "Spatial distribution of RM defensive actions — "
+                    "High Press (x ≥ 60) · Mid Press (x 40–60) · Low Block (x < 40)",
+                    className="text-muted", style={"fontSize": "0.80rem"},
+                ),
+            ]),
+            dbc.CardBody(dcc.Loading(
+                dcc.Graph(id="tp2-press-classification",
+                          config={"displayModeBar": False, "responsive": True}),
+                type="circle", color=_RM,
+            )),
+        ], className="mb-3"),
+
         dbc.Card([
             dbc.CardHeader("Tactical Phase Deep-Dive"),
             dbc.CardBody([
@@ -1430,3 +1447,100 @@ def _posmap_cb(fp, phase, team_side):
     phase = phase or "all"
     side  = team_side or "rm"
     return _position_map(fp, phase, side)
+
+
+# ── Press Classification callback (tp2-) ──────────────────────────────────────
+
+@callback(
+    Output("tp2-press-classification", "figure"),
+    Input("tp-match", "value"),
+)
+def _press_classification(fp):
+    _, meta, events = _load(fp)
+    empty = go.Figure()
+    empty.update_layout(**_PL, height=_H_PITCH, title="Select a match to view press classification")
+
+    if meta is None or events is None or events.empty:
+        return empty
+
+    rm_id = meta["rm_id"]
+    rm_name = _rm_team_name(meta)
+
+    rm_ev = events[events["contestant_id"] == rm_id].copy()
+    def_actions = rm_ev[rm_ev["is_tackle"] | rm_ev["is_interception"] | rm_ev["is_recovery"]]
+    def_actions = def_actions[def_actions["x"].notna() & def_actions["y"].notna()]
+
+    # Classify pressing zone by origin x-coordinate (RM attacks → right, so x=100 is opp goal)
+    high  = def_actions[def_actions["x"] >= 60]   # opponent's half, pressing high
+    mid   = def_actions[(def_actions["x"] >= 40) & (def_actions["x"] < 60)]  # around midfield
+    low   = def_actions[def_actions["x"] < 40]    # deep in own half (low block)
+
+    n_high, n_mid, n_low = len(high), len(mid), len(low)
+    total = n_high + n_mid + n_low
+
+    fig = go.Figure()
+    fig.update_layout(
+        **_PL, height=_H_PITCH,
+        title=(f"Press Classification — {rm_name}  |  "
+               f"High {n_high} ({n_high / max(total, 1) * 100:.0f}%)  "
+               f"Mid {n_mid} ({n_mid / max(total, 1) * 100:.0f}%)  "
+               f"Low {n_low} ({n_low / max(total, 1) * 100:.0f}%)"),
+        xaxis=dict(range=[-2, 102], showticklabels=False, showgrid=False, zeroline=False, fixedrange=True),
+        yaxis=dict(range=[-2, 102], showticklabels=False, showgrid=False, zeroline=False,
+                   scaleanchor="x", scaleratio=0.68, fixedrange=True),
+    )
+
+    # Zone shading
+    zone_shapes = _pitch_shapes_full() + _pitch_stripes_full()
+    zone_shapes += [
+        dict(type="rect", x0=0,  x1=40,  y0=0, y1=100, fillcolor="rgba(59,130,246,0.08)",
+             line=dict(width=0), layer="below"),
+        dict(type="rect", x0=40, x1=60,  y0=0, y1=100, fillcolor="rgba(245,158,11,0.10)",
+             line=dict(width=0), layer="below"),
+        dict(type="rect", x0=60, x1=100, y0=0, y1=100, fillcolor="rgba(220,38,38,0.10)",
+             line=dict(width=0), layer="below"),
+    ]
+    fig.update_layout(shapes=zone_shapes)
+
+    # Zone labels
+    for x_c, label, color in [
+        (20, "Low Block", "#3b82f6"),
+        (50, "Mid Press", "#f59e0b"),
+        (80, "High Press", "#dc2626"),
+    ]:
+        fig.add_annotation(x=x_c, y=96, xref="x", yref="y", text=f"<b>{label}</b>",
+                           showarrow=False, font=dict(size=11, color=color),
+                           bgcolor="rgba(255,255,255,0.75)", borderpad=3)
+
+    # Scatter defensive actions by zone
+    _ZONE_CFG = [
+        (low,  "#3b82f6", "circle",       "Low Block"),
+        (mid,  "#f59e0b", "square",        "Mid Press"),
+        (high, "#dc2626", "triangle-up",   "High Press"),
+    ]
+    for subset, color, symbol, label in _ZONE_CFG:
+        if subset.empty:
+            continue
+        fig.add_trace(go.Scatter(
+            x=subset["x"], y=subset["y"], mode="markers",
+            marker=dict(size=9, color=color, symbol=symbol, opacity=0.78,
+                        line=dict(color="white", width=0.8)),
+            name=f"{label} ({len(subset)})",
+            customdata=np.stack([
+                subset["player_name"].fillna("?"),
+                subset["minute"].fillna(0).astype(int),
+            ], axis=-1),
+            hovertemplate="%{customdata[0]} · Min %{customdata[1]}'  x=%{x:.1f}<extra></extra>",
+        ))
+
+    if len(def_actions) >= 6:
+        fig.add_trace(go.Histogram2dContour(
+            x=def_actions["x"], y=def_actions["y"],
+            colorscale=[[0, "rgba(37,99,235,0)"], [1, "rgba(37,99,235,0.28)"]],
+            showscale=False, ncontours=5,
+            line=dict(width=0.5, color="rgba(37,99,235,0.35)"),
+            hoverinfo="skip", name="Pressure Density",
+        ))
+
+    _add_pitch_context_labels(fig)
+    return fig

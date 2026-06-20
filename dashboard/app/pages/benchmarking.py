@@ -102,7 +102,7 @@ def layout(competition="LaLiga", season="2025-2026"):
         ], className="mb-3"),
 
         dbc.Card(dbc.CardBody([
-            html.P("RM vs League Average vs Rivals", className="section-header mb-2"),
+            html.P("RM vs Avg of Opponents Faced vs Rivals", className="section-header mb-2"),
             dbc.Row([
                 dbc.Col([
                     html.Label("Competition", className="filter-label"),
@@ -138,7 +138,7 @@ def layout(competition="LaLiga", season="2025-2026"):
         ]), className="filter-section mb-4"),
 
         dbc.Card([
-            dbc.CardHeader("RM vs League Avg vs Rivals"),
+            dbc.CardHeader("RM vs Avg of Opponents Faced vs Rivals"),
             dbc.CardBody(dcc.Loading(
                 dcc.Graph(id="bm-rivals-chart", config={"displayModeBar": False, "responsive": True}),
                 type="circle", color=_RM)),
@@ -608,7 +608,7 @@ def _rival_comparison(competition, season, rivals, from_match, to_match):
         if match_key:
             rival_rows.append(norm_to_row[match_key])
 
-    labels = ["Real Madrid", "League Avg"] + [r["team"] for r in rival_rows]
+    labels = ["Real Madrid", "Avg vs Opponents Faced"] + [r["team"] for r in rival_rows]
     ppg = [rm["points_per_game"], league_avg.get("points_per_game", 0)] + [r["points_per_game"] for r in rival_rows]
     gpg = [rm["goals_per_game"], league_avg.get("goals_per_game", 0)] + [r["goals_per_game"] for r in rival_rows]
     xgpg = [rm["xg_per_game"], league_avg.get("xg_per_game", 0)] + [r["xg_per_game"] for r in rival_rows]
@@ -625,7 +625,7 @@ def _rival_comparison(competition, season, rivals, from_match, to_match):
     fig_main.update_layout(
         **_PL,
         height=_H_COMPARE,
-        title=f"{comp} {seas} — RM vs League Avg vs Rivals",
+        title=f"{comp} {seas} — RM vs Avg of Opponents Faced vs Rivals",
         barmode="group",
         xaxis=dict(gridcolor=_C["border"], automargin=True),
         yaxis=dict(title="Rate", gridcolor=_C["border"], automargin=True),
@@ -644,7 +644,7 @@ def _rival_comparison(competition, season, rivals, from_match, to_match):
     ]
     radar = go.Figure()
     radar.add_trace(go.Bar(x=metric_labels, y=rm_metrics, name="Real Madrid", marker_color=_RM))
-    radar.add_trace(go.Bar(x=metric_labels, y=lg_metrics, name="League Avg", marker_color="#64748b", opacity=0.8))
+    radar.add_trace(go.Bar(x=metric_labels, y=lg_metrics, name="Avg vs Opponents Faced", marker_color="#64748b", opacity=0.8))
     if rival_rows:
         rv = rival_rows[0]
         rv_metrics = [rv["pass_acc"], rv["ppda"], rv["shots_per_game"], rv["def_actions_pg"], rv["xg_per_game"]]
@@ -682,7 +682,7 @@ def _rival_comparison(competition, season, rivals, from_match, to_match):
     phase_fig.add_trace(go.Bar(
         x=phase_labels,
         y=[lg_phase[p] for p in phase_labels],
-        name="League Avg",
+        name="Avg vs Opponents Faced",
         marker_color="#64748b",
         opacity=0.8,
     ))

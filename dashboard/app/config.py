@@ -13,7 +13,14 @@ PROJECT_ROOT = Path(__file__).parent.parent
 
 
 def _resolve_data_root() -> Path:
-    """Resolve data root across local/dev/deploy environments."""
+    """Resolve the data root shared by every dashboard module.
+
+    Order: DATA_ROOT env -> bundled dashboard/data -> <repo-root>/data -> cwd/data.
+    The machine-specific absolute path and the corrupt-prone raw root folders
+    (LaLiga/, Copa del Rey/, UEFA Champions League/ at the workspace root) are
+    intentionally NOT candidates, so local and deployed runs share one clean,
+    verified source — the bundled dashboard/data.
+    """
     env_root = os.getenv("DATA_ROOT")
     if env_root:
         p = Path(env_root).expanduser().resolve()
@@ -21,14 +28,9 @@ def _resolve_data_root() -> Path:
             return p
 
     candidates = [
-        # Workspace root when running from dashboard/app
-        PROJECT_ROOT.parent,
-        # data/ subfolder inside repo (for deployment bundles)
-        PROJECT_ROOT / "data",
-        # Dashboard root (if data copied inside repo)
-        PROJECT_ROOT,
-        # Legacy absolute location on this machine
-        Path("/Users/sudhirdahiya/Downloads/FINAL_MASTER_PROJECT(REALMADRID)"),
+        PROJECT_ROOT / "data",          # dashboard/data  (canonical clean bundle)
+        PROJECT_ROOT.parent / "data",   # <repo-root>/data (deploy fallback)
+        Path.cwd() / "data",
     ]
 
     for p in candidates:
@@ -36,7 +38,7 @@ def _resolve_data_root() -> Path:
             return p
 
     # Safe fallback to avoid crashing; app will show empty states.
-    return PROJECT_ROOT
+    return PROJECT_ROOT / "data"
 
 
 DATA_ROOT = _resolve_data_root()

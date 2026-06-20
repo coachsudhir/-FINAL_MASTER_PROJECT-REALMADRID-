@@ -606,47 +606,102 @@ def _threat_chart(fp):
     _, meta, events = _load(fp)
 
     empty = go.Figure()
-    empty.update_layout(**_PL, height=_H_CHART, title="Threat Zones")
+    empty.update_layout(**_PL, height=_H_PITCH, title="Opponent Threat Heatmap")
 
     if meta is None:
         return empty
 
     opp_ev = events[events["contestant_id"] == meta["opp_id"]]
+    opp_ev = opp_ev[opp_ev["x"].notna() & opp_ev["y"].notna()].copy()
     if opp_ev.empty:
         return empty
 
-    # Count by pitch third
-    def _zone(x):
-        if x < 33:
-            return "Defensive Third"
-        elif x < 67:
-            return "Middle Third"
-        else:
-            return "Attacking Third"
+    opp_name = meta.get("opponent", "Opponent")
 
-    # In Opp's perspective, their attacking third is RM's defensive third
-    # Opp attacks toward x=0 (when RM is home), so opp_x=0-33 = opp attacking third
-    # Flip for display: 100-x
-    zone_counts = opp_ev.assign(zone=opp_ev["x"].map(lambda x: _zone(100 - x)))["zone"].value_counts()
+    # Mirror coordinates: opponent attacks toward x=0 in RM's data frame, so
+    # flip to show their attacking events on the right side of the display pitch.
+    opp_ev["px"] = 100.0 - opp_ev["x"].astype(float)
+    opp_ev["py"] = 100.0 - opp_ev["y"].astype(float)
+
+    # Zone counts for annotation (from their perspective, high x = their attacking third)
+    n_high = int((opp_ev["px"] >= 67).sum())   # opponent attacking third
+    n_mid  = int(((opp_ev["px"] >= 33) & (opp_ev["px"] < 67)).sum())
+    n_low  = int((opp_ev["px"] < 33).sum())    # opponent defensive third
+    total  = len(opp_ev)
 
     fig = go.Figure()
-    zone_colors = {
-        "Defensive Third": _C["accent_blue"],
-        "Middle Third": _C["accent_orange"],
-        "Attacking Third": _C["accent_red"],
-    }
-    for zone in ["Defensive Third", "Middle Third", "Attacking Third"]:
-        val = int(zone_counts.get(zone, 0))
-        fig.add_trace(go.Bar(
-            x=[zone], y=[val], name=zone,
-            marker_color=zone_colors[zone],
-            text=[val], textposition="auto",
+    fig.update_layout(
+        **_PL,
+        height=_H_PITCH,
+        title=(f"{opp_name} Action Density Heatmap  |  "
+               f"Def Third {n_low} ({n_low/max(total,1)*100:.0f}%)  "
+               f"Mid {n_mid} ({n_mid/max(total,1)*100:.0f}%)  "
+               f"Att Third {n_high} ({n_high/max(total,1)*100:.0f}%)"),
+        xaxis=dict(range=[-2, 102], showticklabels=False, showgrid=False,
+                   zeroline=False, fixedrange=True),
+        yaxis=dict(range=[-2, 102], showticklabels=False, showgrid=False,
+                   zeroline=False, scaleanchor="x", scaleratio=0.68, fixedrange=True),
+    )
+    fig.update_layout(shapes=_pitch_stripes_full() + _pitch_shapes_full())
+
+    # 2-D density heatmap on the pitch
+    fig.add_trace(go.Histogram2d(
+        x=opp_ev["px"], y=opp_ev["py"],
+        xbins=dict(start=0, end=100, size=5),
+        ybins=dict(start=0, end=100, size=5),
+        colorscale=[
+            [0.0,  "rgba(220,38,38,0.0)"],
+            [0.25, "rgba(220,38,38,0.25)"],
+            [0.6,  "rgba(220,38,38,0.55)"],
+            [1.0,  "rgba(220,38,38,0.85)"],
+        ],
+        showscale=True,
+        colorbar=dict(title="Actions", thickness=12, len=0.55),
+        hovertemplate="x=%{x}, y=%{y}<br>Events: %{z}<extra></extra>",
+        name="Action Density",
+        zsmooth="best",
+    ))
+
+    # Individual high-danger events (shots + key passes) as markers
+    danger = opp_ev[opp_ev["is_shot"] | opp_ev["is_goal"] | opp_ev["is_key_pass"]]
+    if not danger.empty:
+        fig.add_trace(go.Scatter(
+            x=danger["px"], y=danger["py"],
+            mode="markers",
+            marker=dict(
+                size=[12 if r["is_goal"] else 9 for _, r in danger.iterrows()],
+                color=[_C.get("accent_yellow", "#f59e0b") if r["is_goal"] else
+                       _OPP if r["is_shot"] else "#94a3b8"
+                       for _, r in danger.iterrows()],
+                symbol=["star" if r["is_goal"] else
+                        "diamond-open" if r["is_shot"] else "circle-open"
+                        for _, r in danger.iterrows()],
+                line=dict(width=1, color="white"),
+                opacity=0.85,
+            ),
+            name="Shots & Key Passes",
+            customdata=[
+                [r.get("player_name", "?"), int(r.get("minute", 0)),
+                 "Goal" if r["is_goal"] else "Shot" if r["is_shot"] else "Key Pass"]
+                for _, r in danger.iterrows()
+            ],
+            hovertemplate="%{customdata[0]} · %{customdata[2]} Min %{customdata[1]}'<extra></extra>",
         ))
-    fig.update_layout(**_PL, height=_H_CHART,
-                      title=f"{meta['opponent']} Action Density by Zone",
-                      xaxis=dict(gridcolor=_C["border"], automargin=True),
-                      yaxis=dict(gridcolor=_C["border"], automargin=True),
-                      showlegend=True)
+
+    # Direction arrows
+    fig.add_annotation(x=0.03, y=0.99, xref="paper", yref="paper",
+                       text=f"{opp_name} attacks →", showarrow=False,
+                       xanchor="left", font=dict(size=10, color=_OPP))
+    fig.add_annotation(x=0.97, y=0.99, xref="paper", yref="paper",
+                       text="← Real Madrid attacks", showarrow=False,
+                       xanchor="right", font=dict(size=10, color=_RM))
+
+    # Pitch third labels
+    for cx, label in [(16, "Def Third"), (50, "Mid Third"), (84, "Att Third")]:
+        fig.add_annotation(x=cx, y=4, xref="x", yref="y", text=label,
+                           showarrow=False, font=dict(size=9, color="rgba(15,23,42,0.55)"),
+                           bgcolor="rgba(255,255,255,0.70)", borderpad=2)
+
     return fig
 
 
@@ -761,7 +816,7 @@ def _scouting_blocks(fp, competition, season):
     ]
     sim = round(100.0 * (1.0 - sum(_norm) / len(_norm)), 1)
 
-    # Reference matches (same opponent in comp+season index)
+    # Reference matches — all fixtures vs same opponent this season
     from utils.data_helpers import get_match_options
     refs = []
     for m in get_match_options(competition or "LaLiga", season or "2025-2026"):
@@ -769,6 +824,10 @@ def _scouting_blocks(fp, competition, season):
         if meta["opponent"] in label:
             refs.append(label)
     refs = refs[:5]
+    refs_display = (
+        f"{len(refs)} fixture(s) vs {meta['opponent']}: " + ", ".join(refs)
+        if refs else "No additional indexed matches"
+    )
 
     # Set-piece tendencies from observed corner sequences
     corners = int((opp_ev["type_id"] == 6).sum())
@@ -816,7 +875,7 @@ def _scouting_blocks(fp, competition, season):
             html.Tbody([
                 html.Tr([html.Td("key players"), html.Td(", ".join(key_players) if key_players else "Not enough player-level events")]),
                 html.Tr([html.Td("tactical comparison vs RM"), html.Td(tactical_compare)]),
-                html.Tr([html.Td("reference matches"), html.Td(" | ".join(refs) if refs else "No additional indexed matches")]),
+                html.Tr([html.Td("reference matches"), html.Td(refs_display)]),
                 html.Tr([html.Td("set-piece tendencies"), html.Td(set_piece_line)]),
             ]),
         ],

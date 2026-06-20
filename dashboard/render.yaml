@@ -9,7 +9,7 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
-      # Canonical clean dataset bundled at dashboard/data (Real Madrid matches only,
-      # all 3 competitions x 2 seasons, verified 0 corrupt files).
+      # DATA_ROOT points to the folder containing: LaLiga/, Copa del Rey/, UEFA Champions League/
+      # data/ subfolder is committed to the repo with only Real Madrid match files
       - key: DATA_ROOT
-        value: /opt/render/project/src/dashboard/data
+        value: /opt/render/project/src/data

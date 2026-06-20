@@ -56,26 +56,29 @@ COMP_FOLDER = {
 # Filesystem helpers
 # ---------------------------------------------------------------------------
 
-def _data_root() -> Path:
-    """Locate the folder that contains LaLiga/, Copa del Rey/, etc."""
-    import os
-    env = os.getenv("DATA_ROOT")
-    if env:
-        p = Path(env)
-        if p.exists():
-            return p
-    candidates = [
-        Path(__file__).parent.parent.parent / "data",   # dashboard/data/
-        Path(__file__).parent.parent.parent.parent,     # workspace root
-        Path("/Users/sudhirdahiya/Downloads/FINAL_MASTER_PROJECT(REALMADRID)"),
-    ]
-    for p in candidates:
-        if (p / "LaLiga").exists() or (p / "Copa del Rey").exists():
-            return p
-    return Path(".")
-
-
-DATA_ROOT = _data_root()
+# Share one single source of truth with config.py so every dashboard module
+# resolves the same clean, verified bundle (dashboard/data). The fallback below
+# is only used if config can't be imported; it mirrors config's resolution and
+# deliberately avoids the corrupt raw root folders and any machine-specific path.
+try:
+    from config import DATA_ROOT
+except ImportError:
+    def _data_root() -> Path:
+        import os
+        env = os.getenv("DATA_ROOT")
+        if env and Path(env).exists():
+            return Path(env)
+        here = Path(__file__).resolve()
+        candidates = [
+            here.parent.parent.parent / "data",          # dashboard/data (canonical bundle)
+            here.parent.parent.parent.parent / "data",   # <repo-root>/data (deploy fallback)
+            Path.cwd() / "data",
+        ]
+        for p in candidates:
+            if (p / "LaLiga").exists() or (p / "Copa del Rey").exists() or (p / "UEFA Champions League").exists():
+                return p
+        return Path(".")
+    DATA_ROOT = _data_root()
 
 
 def get_competition_seasons(competition: str) -> list[str]:
