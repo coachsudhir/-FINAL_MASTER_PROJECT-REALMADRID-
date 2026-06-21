@@ -339,6 +339,8 @@ def parse_events(data: dict) -> pd.DataFrame:
             "is_foul":      tid in FOUL_TYPES,
             "is_key_pass":  ev.get("keyPass", False),
             "is_assist":    bool(ev.get("assist")),
+            # Set-piece restarts: qualifier 5 = FreekickTaken, qualifier 72 = CornerTaken
+            "is_set_piece": _has_any_qualifier(quals, {5, 72}),
             "xg":           xg_value,
             "xgot":         xgot,
             "distance":     distance,

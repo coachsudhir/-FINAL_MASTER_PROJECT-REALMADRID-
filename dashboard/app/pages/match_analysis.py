@@ -1007,8 +1007,22 @@ def _regain_seconds(events: pd.DataFrame, team_id: str) -> np.ndarray:
 
 
 def _restart_seconds(events: pd.DataFrame, team_id: str) -> np.ndarray:
-    """Times (s) of set-piece restarts for `team_id` (corners=6, free kicks=5)."""
-    sp = events[(events["contestant_id"] == team_id) & (events["type_id"].isin({5, 6}))]
+    """Times (s) of set-piece restarts for `team_id`.
+
+    Detected via qualifier IDs on Pass events:
+      QID 5  = FreekickTaken
+      QID 72 = CornerTaken
+    Both are stored in the is_set_piece column added by parse_events().
+    NOTE: type_id 5 = Offside and type_id 6 = Corner Awarded — those are
+    announcement events tagged to BOTH teams and must NOT be used here.
+    """
+    mask = (events["contestant_id"] == team_id)
+    if "is_set_piece" in events.columns:
+        mask = mask & events["is_set_piece"]
+    else:
+        # Fallback: free kick / corner kick passes identified by qualifier on the pass
+        mask = mask & events["is_pass"] & (events["type_id"] == 1)
+    sp = events[mask]
     return np.sort(_event_seconds(sp).to_numpy()) if not sp.empty else np.array([])
 
 

@@ -1449,6 +1449,48 @@ def _posmap_cb(fp, phase, team_side):
     return _position_map(fp, phase, side)
 
 
+def _position_data(fp: str, phase: str, team_side: str) -> pd.DataFrame:
+    """Return the average-position DataFrame (used by Streamlit to render the
+    Player Positional Summary table without requiring a running Dash app)."""
+    data, meta, events = _load(fp)
+    if meta is None or events is None or events.empty:
+        return pd.DataFrame()
+
+    team_id    = meta["rm_id"] if team_side == "rm" else meta["opp_id"]
+    shirt_nums = _get_shirt_numbers(data, team_id)
+
+    ev = events[events["contestant_id"] == team_id].copy()
+    ev = ev[ev["player_name"].notna() & (ev["player_name"].str.strip() != "")]
+    ev = ev[ev["x"].notna() & ev["y"].notna()]
+    ev = _filter_phase_events(ev, phase)
+
+    if ev.empty:
+        return pd.DataFrame()
+
+    if team_side == "opp":
+        ev = ev.copy()
+        ev["x"] = 100.0 - ev["x"]
+        ev["y"] = 100.0 - ev["y"]
+
+    pid_first = ev.groupby("player_name")["player_id"].first()
+    pos = (
+        ev.groupby("player_name")
+        .agg(avg_x=("x", "mean"), avg_y=("y", "mean"), n_ev=("event_id", "count"))
+        .reset_index()
+    )
+    pos["player_id"] = pos["player_name"].map(pid_first).astype(str)
+    pos["shirt"]     = pos["player_id"].map(shirt_nums).fillna("").astype(str)
+    pass_ct          = ev[ev["is_pass"]].groupby("player_name").size()
+    pos["passes"]    = pos["player_name"].map(pass_ct).fillna(0).astype(int)
+    pos["line"]      = np.where(pos["avg_x"] < 100.0 / 3.0, "DEF",
+                       np.where(pos["avg_x"] < 200.0 / 3.0, "MID", "FWD"))
+    return (
+        pos[["shirt", "player_name", "line", "avg_x", "avg_y", "n_ev", "passes"]]
+        .sort_values("avg_x", ascending=False)
+        .reset_index(drop=True)
+    )
+
+
 # ── Press Classification callback (tp2-) ──────────────────────────────────────
 
 @callback(
