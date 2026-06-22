@@ -5,11 +5,15 @@ services:
     plan: free
     autoDeploy: true
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --workers 2 --timeout 120 --bind 0.0.0.0:$PORT wsgi:server
+    # This project is a STREAMLIT app (entrypoint: streamlit_app.py). Streamlit
+    # runs its own Tornado server and CANNOT be served by gunicorn/WSGI, so we
+    # launch it directly and bind it to the port Render injects via $PORT.
+    startCommand: streamlit run streamlit_app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true --server.enableCORS false --server.enableXsrfProtection false
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
       # Canonical clean dataset bundled at dashboard/data (Real Madrid matches only,
-      # all 3 competitions x 2 seasons, verified 0 corrupt files).
+      # all 3 competitions x 2 seasons, verified 0 corrupt files). On Render the
+      # repo is checked out at /opt/render/project/src.
       - key: DATA_ROOT
         value: /opt/render/project/src/dashboard/data
