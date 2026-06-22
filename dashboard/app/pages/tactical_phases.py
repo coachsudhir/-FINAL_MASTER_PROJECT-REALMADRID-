@@ -1104,7 +1104,8 @@ def _team_line_shapes(avg_x_values: np.ndarray) -> list[dict]:
     return shapes
 
 
-def _pass_edge_traces(ev: pd.DataFrame) -> list[go.BaseTraceType]:
+#def _pass_edge_traces(ev: pd.DataFrame) -> list[go.BaseTraceType]:
+def _pass_edge_traces(ev: pd.DataFrame) -> list:
     """
     Build lightweight pass-connection traces between players.
     Uses ordered successful passes to infer passer→receiver pairs.
