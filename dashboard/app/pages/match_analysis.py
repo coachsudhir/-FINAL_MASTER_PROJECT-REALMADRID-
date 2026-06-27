@@ -2130,6 +2130,79 @@ def _subphase_chart(mode, file_path, competition, season, venue, from_match, to_
     return fig
 
 
+def _subphase_radar(mode, file_path, competition, season, venue, from_match, to_match):
+    """Radar (Scatterpolar) view of the four A/B/C/D tactical-phase scores.
+
+    Reuses the exact same phase computation as ``_subphase_chart``
+    (``phase_scores_from_events`` over real Opta events) — no synthetic data.
+    Single match → that match's profile; Range → mean across the scoped matches.
+    """
+    _PHASE_KEYS = ["A. Offensive Moment", "B. Defensive Transition",
+                   "C. Defensive Moment", "D. Offensive Transition"]
+    _AXIS = ["A · Offensive<br>Moment", "B · Defensive<br>Transition",
+             "C · Defensive<br>Moment", "D · Offensive<br>Transition"]
+
+    def _empty(title="Tactical Phase Profile"):
+        f = go.Figure()
+        f.update_layout(**_PL, height=_H_CHART + 40, title=title)
+        return f
+
+    try:
+        if mode == "Range":
+            payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+            if not payloads:
+                return _empty("Tactical Phase Profile — select a range")
+            scores = pd.DataFrame(
+                [phase_scores_from_events(ev, m["rm_id"], m["opp_id"]) for _, m, ev in payloads]
+            ).mean().to_dict()
+            title_suffix = f" ({len(payloads)} matches avg)"
+        else:
+            _, meta, events = _load(file_path)
+            if meta is None or events is None or events.empty:
+                return _empty()
+            scores = phase_scores_from_events(events, meta["rm_id"], meta["opp_id"])
+            opp = meta.get("opponent", "")
+            title_suffix = f" — vs {opp}" if opp else ""
+    except Exception as _e:
+        return _empty(f"Error: {_e}")
+
+    values = [round(float(scores.get(k, 0.0)), 1) for k in _PHASE_KEYS]
+    r_closed = values + values[:1]
+    theta_closed = _AXIS + _AXIS[:1]
+    point_labels = [f"{v:.0f}" for v in values] + [""]
+
+    _GOLD = "#c8a951"
+    fig = go.Figure()
+    fig.add_trace(go.Scatterpolar(
+        r=r_closed, theta=theta_closed,
+        fill="toself", fillcolor="rgba(37,99,235,0.22)",
+        line=dict(color=_RM, width=2.4),
+        mode="lines+markers+text",
+        marker=dict(size=10, color=_GOLD, line=dict(color=_C["text_primary"], width=1.2)),
+        text=point_labels, textposition="top center",
+        textfont=dict(size=12, color=_C["text_primary"]),
+        hovertemplate="<b>%{theta}</b><br>Phase Index: %{r:.1f} / 100<extra></extra>",
+        name="RM phase profile",
+    ))
+    fig.update_layout(**{
+        **_PL,
+        "height": _H_CHART + 80,
+        "showlegend": False,
+        "title": dict(text=f"Tactical Phase Profile{title_suffix}",
+                      x=0.5, xanchor="center", font=dict(size=13)),
+        "polar": dict(
+            bgcolor=_C["surface"],
+            radialaxis=dict(range=[0, 100], tickvals=[20, 40, 60, 80],
+                            tickfont=dict(size=9, color=_C["text_secondary"]),
+                            gridcolor=_C["border"], linecolor=_C["border"]),
+            angularaxis=dict(tickfont=dict(size=11, color=_C["text_primary"]),
+                             gridcolor=_C["border"], linecolor=_C["border"]),
+        ),
+        "margin": dict(l=70, r=70, t=90, b=70),
+    })
+    return fig
+
+
 def _with_event_seconds(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df

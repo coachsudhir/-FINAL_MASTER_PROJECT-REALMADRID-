@@ -1057,6 +1057,14 @@ elif section == "Match Analysis":
             except Exception:
                 pass
 
+            # Phase profile radar — same A/B/C/D scores, radar view
+            try:
+                _chart_card("Tactical Phase Profile (Radar)",
+                    ma._subphase_radar(mode_key, fp, competition, season, venue_val,
+                                       from_match, to_match), key="ma_sub_radar")
+            except Exception:
+                pass
+
             # Transition metrics
             try:
                 _chart_card("Transition Metrics",
@@ -1494,6 +1502,15 @@ elif section == "Tactical Phases":
             _chart_card("Pressing Map", tp._press_map(fp), key="tp_press")
         except Exception as e:
             st.warning(f"Press map unavailable: {e}")
+
+        # ── Tactical Phase Profile (A/B/C/D radar) ────────────────────────
+        _section_hdr("Tactical Phase Profile (A/B/C/D)")
+        try:
+            _chart_card("Tactical Phase Profile (Radar)",
+                ma._subphase_radar("Single", fp, competition, season, "All", None, None),
+                key="tp_phase_radar")
+        except Exception as e:
+            st.warning(f"Phase profile unavailable: {e}")
 
         # ── Press Classification (spatial distribution) ────────────────────
         _section_hdr("Press Classification — Spatial Distribution")
