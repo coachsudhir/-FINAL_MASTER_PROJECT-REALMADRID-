@@ -97,16 +97,17 @@ def create_top_menu():
                 html.Div(
                     html.Div(
                         [
-                            html.Div(
-                                html.Img(
-                                    src="/assets/rm_crest.jpg",
-                                    style={
-                                        "height": "40px",
-                                        "width":  "40px",
-                                        "objectFit": "contain",
-                                    },
-                                ),
-                                className="rm-sidebar-brand-icon",
+                            html.Img(
+                                src="/assets/rm_crest.jpg",
+                                style={
+                                    "height": "44px",
+                                    "width":  "44px",
+                                    "objectFit": "contain",
+                                    "borderRadius": "50%",
+                                    "border": "2px solid rgba(200,169,81,0.7)",
+                                    "background": "#ffffff",
+                                    "flexShrink": "0",
+                                },
                             ),
                             html.Div(
                                 [
@@ -148,6 +149,26 @@ def create_top_menu():
                 ),
                 html.Div(
                     [
+                        html.Div(
+                            html.Img(
+                                src="/assets/ue_real_madrid_logo.png",
+                                style={
+                                    "height": "40px",
+                                    "maxWidth": "200px",
+                                    "objectFit": "contain",
+                                    "display": "block",
+                                },
+                            ),
+                            style={
+                                "background": "#ffffff",
+                                "borderRadius": "6px",
+                                "padding": "4px 10px",
+                                "marginBottom": "5px",
+                                "marginLeft": "auto",
+                                "display": "inline-block",
+                                "boxShadow": "0 1px 4px rgba(0,0,0,0.25)",
+                            },
+                        ),
                         html.P("Sudhir Dahiya", className="rm-author-name mb-0"),
                         html.P("Master's in Sports Analytics (2025–2026)",
                                className="rm-author-course mb-0"),

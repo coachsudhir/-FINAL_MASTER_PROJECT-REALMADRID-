@@ -7,9 +7,9 @@
 /* ── DESIGN TOKENS ──────────────────────────────────────── */
 :root {
   /* Backgrounds */
-  --rm-bg:          #f5f8fd;
+  --rm-bg:          #f8f7f3;
   --rm-surface:     #ffffff;
-  --rm-surface-2:   #f3f7ff;
+  --rm-surface-2:   #f5f3ee;
   --rm-sidebar-bg:  #0f1923;
 
   /* Borders */
@@ -27,8 +27,8 @@
   --rm-blue-light:  #eff6ff;
   --rm-blue-mid:    #3b82f6;
   --rm-navy:        #0b1730;
-  --rm-gold:        #d4af37;
-  --rm-gold-light:  #fff6d6;
+  --rm-gold:        #c8a951;
+  --rm-gold-light:  #fdf8ec;
   --rm-green:       #059669;
   --rm-green-light: #ecfdf5;
   --rm-red:         #dc2626;
@@ -55,9 +55,7 @@
 
 body {
   background:
-    radial-gradient(circle at 8% 10%, rgba(212,175,55,0.16) 0%, rgba(212,175,55,0.00) 30%),
-    radial-gradient(circle at 92% 14%, rgba(29,78,216,0.14) 0%, rgba(29,78,216,0.00) 34%),
-    linear-gradient(180deg, #fbfcfe 0%, #f4f7fb 58%, #edf3fb 100%);
+    linear-gradient(180deg, #f8f7f3 0%, #f5f3ee 60%, #f8f7f3 100%);
   color: var(--rm-text);
   font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   font-size: 14px;
@@ -247,7 +245,17 @@ a:hover {
   margin-left: auto;
   text-align: right;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
+
+.rm-top-menu .rm-author-name,
+.rm-author-name   { color: #ffffff !important; font-weight: 700; font-size: 12px; line-height: 1.4; margin: 0; }
+.rm-top-menu .rm-author-course,
+.rm-author-course { color: var(--rm-gold) !important; font-size: 10px; line-height: 1.4; margin: 0; }
+/* Prevent Bootstrap / global p rule from overriding nav meta text */
+.rm-top-menu p   { color: #e2e8f0 !important; margin: 0; }
 
 /* ── TOP FILTER BAR ──────────────────────────────────────── */
 .rm-filter-bar {
@@ -277,10 +285,7 @@ a:hover {
 
 .page-content {
   padding: 20px 24px;
-  background:
-    radial-gradient(circle at 0% 0%, rgba(212,175,55,0.10) 0%, rgba(212,175,55,0.00) 36%),
-    radial-gradient(circle at 100% 0%, rgba(37,99,235,0.10) 0%, rgba(37,99,235,0.00) 38%),
-    linear-gradient(180deg, rgba(255,255,255,0.78) 0%, rgba(244,248,255,0.70) 100%);
+  background: transparent;
 }
 
 /* ── PAGE HEADER ─────────────────────────────────────────── */
@@ -302,8 +307,8 @@ a:hover {
 
 /* ── CARDS ────────────────────────────────────────────────── */
 .card {
-  background: linear-gradient(180deg, #ffffff 0%, #f6f9ff 100%);
-  border: 1px solid #d7e3f6;
+  background: linear-gradient(180deg, #ffffff 0%, #faf9f6 100%);
+  border: 1px solid #e2ddd0;
   border-radius: var(--rm-radius-lg);
   color: var(--rm-text);
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.05);
@@ -311,8 +316,8 @@ a:hover {
 }
 .card:hover { box-shadow: 0 10px 24px rgba(15, 23, 42, 0.10), 0 3px 8px rgba(15, 23, 42, 0.06); }
 .card-header {
-  background: linear-gradient(180deg, rgba(239,246,255,0.9) 0%, rgba(255,255,255,0.95) 100%) !important;
-  border-bottom: 1px solid #dce7f8 !important;
+  background: linear-gradient(180deg, rgba(248,247,243,0.95) 0%, rgba(255,255,255,0.98) 100%) !important;
+  border-bottom: 1px solid #e2ddd0 !important;
   color: var(--rm-navy) !important;
   font-weight: 700;
   letter-spacing: 0.3px;
