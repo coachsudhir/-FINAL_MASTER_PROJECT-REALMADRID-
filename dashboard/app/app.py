@@ -41,6 +41,7 @@ import pages.player_analysis
 import pages.tactical_phases
 import pages.opponent_analysis
 import pages.benchmarking
+import pages.report_page
 
 # ============================================================================
 # APP INIT
@@ -68,6 +69,7 @@ NAV_ITEMS = [
     {"icon": "⚔️", "label": "Tactical Phases", "href": "/tactical-phases"},
     {"icon": "🔭", "label": "Opponent Scout",  "href": "/opponent-analysis"},
     {"icon": "📈", "label": "Benchmarking",    "href": "/benchmarking"},
+    {"icon": "📋", "label": "Report",          "href": "/report"},
 ]
 
 
@@ -226,6 +228,7 @@ CRUMB_MAP = {
     "/tactical-phases":   "⚔️  Tactical Phases",
     "/opponent-analysis": "🔭  Opponent Scout",
     "/benchmarking":      "📈  Benchmarking",
+    "/report":            "📋  Report Generator",
 }
 
 
@@ -261,6 +264,9 @@ def display_page(pathname, g_comp, g_season):
         return layout(g_comp, g_season), breadcrumb
     elif pathname == "/benchmarking":
         from pages.benchmarking import layout
+        return layout(g_comp, g_season), breadcrumb
+    elif pathname == "/report":
+        from pages.report_page import layout
         return layout(g_comp, g_season), breadcrumb
     else:
         return (
