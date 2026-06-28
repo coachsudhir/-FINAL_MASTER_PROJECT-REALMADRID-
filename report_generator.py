@@ -485,7 +485,7 @@ def generate_pdf(cfg: dict) -> bytes:
     story.append(Spacer(1, 0.3*cm))
     story.append(Paragraph("Tactical &amp; Player Analytics Report", ParagraphStyle(
         "ct3", fontName="Helvetica", fontSize=14,
-        textColor=_WHITE_RL, alignment=TA_CENTER)))
+        textColor=_NAVY_RL, alignment=TA_CENTER)))
     story.append(Spacer(1, 1.2*cm))
     story.append(_divider(_GOLD_RL))
     story.append(Spacer(1, 0.4*cm))
@@ -506,15 +506,24 @@ def generate_pdf(cfg: dict) -> bytes:
         colWidths=[5*cm, W - 5*cm],
     )
     cover_table.setStyle(TableStyle([
-        ("FONTNAME",  (0, 0), (0, -1), "Helvetica-Bold"),
-        ("FONTNAME",  (1, 0), (1, -1), "Helvetica"),
-        ("FONTSIZE",  (0, 0), (-1, -1), 10),
-        ("TEXTCOLOR", (0, 0), (0, -1), _GOLD_RL),
-        ("TEXTCOLOR", (1, 0), (1, -1), _WHITE_RL),
-        ("ALIGN",     (0, 0), (0, -1), "RIGHT"),
-        ("ALIGN",     (1, 0), (1, -1), "LEFT"),
-        ("TOPPADDING",(0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        # Label column — navy background, gold text
+        ("BACKGROUND",    (0, 0), (0, -1), _NAVY_RL),
+        ("FONTNAME",      (0, 0), (0, -1), "Helvetica-Bold"),
+        ("TEXTCOLOR",     (0, 0), (0, -1), _GOLD_RL),
+        ("ALIGN",         (0, 0), (0, -1), "RIGHT"),
+        # Value column — white/light background, navy text
+        ("ROWBACKGROUNDS",(1, 0), (1, -1),
+         [rl_colors.white, rl_colors.Color(0.96, 0.97, 0.99)]),
+        ("FONTNAME",      (1, 0), (1, -1), "Helvetica"),
+        ("TEXTCOLOR",     (1, 0), (1, -1), _NAVY_RL),
+        ("ALIGN",         (1, 0), (1, -1), "LEFT"),
+        # Shared
+        ("FONTSIZE",      (0, 0), (-1, -1), 10),
+        ("TOPPADDING",    (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 8),
+        ("GRID",          (0, 0), (-1, -1), 0.4, _GRAY_RL),
     ]))
     story.append(cover_table)
     story.append(PageBreak())
