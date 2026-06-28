@@ -98,7 +98,14 @@ def create_top_menu():
                     html.Div(
                         [
                             html.Div(
-                                html.Span("⚽", style={"fontSize": "20px"}),
+                                html.Img(
+                                    src="/assets/rm_crest.jpg",
+                                    style={
+                                        "height": "40px",
+                                        "width":  "40px",
+                                        "objectFit": "contain",
+                                    },
+                                ),
                                 className="rm-sidebar-brand-icon",
                             ),
                             html.Div(

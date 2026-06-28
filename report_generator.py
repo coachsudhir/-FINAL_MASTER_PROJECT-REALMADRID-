@@ -58,7 +58,8 @@ _RED_RL   = rl_colors.Color(*[v/255 for v in _RED_RGB])
 _AMBER_RL = rl_colors.Color(*[v/255 for v in _AMBER_RGB])
 _BLUE_RL  = rl_colors.Color(*[v/255 for v in _BLUE_RGB])
 
-_CREST_PATH = str(Path(__file__).parent / "dashboard" / "app" / "assets" / "rm_crest.jpg")
+_CREST_PATH   = str(Path(__file__).parent / "dashboard" / "app" / "assets" / "rm_crest.jpg")
+_UE_LOGO_PATH = str(Path(__file__).parent / "dashboard" / "app" / "assets" / "ue_real_madrid_logo.png")
 PAGE_W, PAGE_H = A4
 
 
@@ -401,14 +402,29 @@ class _NavyPageTemplate(PageTemplate):
             # Gold accent line below header
             canvas.setFillColorRGB(*[v/255 for v in _GOLD_RGB])
             canvas.rect(0, h - 23*mm, w, 1*mm, fill=1, stroke=0)
+            # UE Real Madrid logo — right side of header
+            _ue_logo_h = 14 * mm
+            _ue_logo_w = _ue_logo_h * 4.2   # approximate aspect ratio of the banner
+            _ue_x = w - 1.5 * cm - _ue_logo_w
+            _ue_y = h - 22 * mm + (22 * mm - _ue_logo_h) / 2
+            try:
+                canvas.drawImage(
+                    _UE_LOGO_PATH,
+                    _ue_x, _ue_y,
+                    width=_ue_logo_w, height=_ue_logo_h,
+                    preserveAspectRatio=True, anchor="sw",
+                    mask="auto",
+                )
+            except Exception:
+                pass
             # Header text
             canvas.setFillColorRGB(1, 1, 1)
             canvas.setFont("Helvetica-Bold", 10)
             canvas.drawString(1.5*cm, h - 15*mm, "Real Madrid CF — Tactical & Player Analytics")
             canvas.setFont("Helvetica", 8)
             canvas.setFillColorRGB(*[v/255 for v in _GOLD_RGB])
-            canvas.drawRightString(w - 1.5*cm, h - 15*mm,
-                                   f"{doc._cfg['competition']} · {doc._cfg['season']}")
+            canvas.drawString(1.5*cm, h - 20*mm,
+                              f"{doc._cfg['competition']} · {doc._cfg['season']}")
             # Footer gold line
             canvas.setFillColorRGB(*[v/255 for v in _GOLD_RGB])
             canvas.rect(0, 12*mm, w, 0.5*mm, fill=1, stroke=0)
@@ -446,8 +462,16 @@ def generate_pdf(cfg: dict) -> bytes:
 
     # ── COVER PAGE ───────────────────────────────────────────────────────────
     # Full-navy cover: draw directly, then add content as flowables with custom bg
-    story.append(Spacer(1, 3*cm))
-    # Crest image
+    story.append(Spacer(1, 2*cm))
+    # UE Real Madrid logo on cover
+    try:
+        ue_logo = RLImage(_UE_LOGO_PATH, width=8*cm, height=2.2*cm)
+        ue_logo.hAlign = "CENTER"
+        story.append(ue_logo)
+    except Exception:
+        pass
+    story.append(Spacer(1, 0.8*cm))
+    # RM Crest image
     try:
         crest = RLImage(cfg["crest_path"], width=3.5*cm, height=3.5*cm)
         crest.hAlign = "CENTER"
