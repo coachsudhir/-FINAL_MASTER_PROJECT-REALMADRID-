@@ -398,6 +398,7 @@ def layout(competition="LaLiga", season="2025-2026"):
                         options=[
                             {"label": "Single Match", "value": "Single"},
                             {"label": "Match Range", "value": "Range"},
+                            {"label": "Multi-Match (up to 5)", "value": "Multi"},
                         ],
                         value="Single",
                         clearable=False,
@@ -468,6 +469,28 @@ def layout(competition="LaLiga", season="2025-2026"):
                 ], md=4),
             ], className="g-2"),
         ]), className="filter-section mb-4", id="ma-range-card"),
+
+        # Multi-match selection card
+        dbc.Card(dbc.CardBody([
+            html.P("Select Specific Matches (up to 5)", className="section-header mb-2"),
+            html.Small("Pick up to 5 individual matches to aggregate and compare.", className="text-muted d-block mb-2"),
+            dbc.Row([
+                dbc.Col([
+                    html.Label("Matches", className="filter-label"),
+                    dcc.Dropdown(
+                        id="ma-multi-match-select",
+                        options=[],
+                        value=[],
+                        multi=True,
+                        placeholder="Select matches (max 5)…",
+                        clearable=True,
+                    ),
+                ], md=12),
+            ], className="g-2"),
+            html.Div(id="ma-multi-match-warning", className="mt-2"),
+        ]), className="filter-section mb-4", id="ma-multi-match-card"),
+
+        dcc.Store(id="ma-multi-paths-store", storage_type="memory", data=[]),
 
         # Match header
         dcc.Loading(html.Div(id="ma-match-header", className="mb-3"),
@@ -825,6 +848,7 @@ def _season_opts(competition, current):
     Output("ma-range-help", "children"),
     Output("ma-single-match-col", "style"),
     Output("ma-range-card", "style"),
+    Output("ma-multi-match-card", "style"),
     Input("ma-analysis-mode", "value"),
 )
 def _analysis_mode_visibility(mode):
@@ -836,6 +860,17 @@ def _analysis_mode_visibility(mode):
             "Select the start and end match for the range analysis below.",
             {"display": "none"},
             {"display": "block"},
+            {"display": "none"},
+        )
+    if mode == "Multi":
+        return (
+            "Competition / Season / Venue / Analysis Setup",
+            "Choose the context then pick up to 5 specific matches below.",
+            "Match Range",
+            "Optional: use the range filter to narrow the list of available matches.",
+            {"display": "none"},
+            {"display": "none"},
+            {"display": "block"},
         )
     return (
         "Competition / Season / Venue / Match",
@@ -844,7 +879,40 @@ def _analysis_mode_visibility(mode):
         "Optional: narrow which matches are available in Select Match.",
         {"display": "block"},
         {"display": "none"},
+        {"display": "none"},
     )
+
+
+@callback(
+    Output("ma-multi-match-select", "options"),
+    Input("ma-competition", "value"),
+    Input("ma-season", "value"),
+    Input("ma-venue", "value"),
+)
+def _multi_match_opts(competition, season, venue):
+    return get_match_options(competition or "LaLiga", season or "2025-2026", venue or "All")
+
+
+@callback(
+    Output("ma-multi-match-select", "value"),
+    Output("ma-multi-match-warning", "children"),
+    Input("ma-multi-match-select", "value"),
+    prevent_initial_call=True,
+)
+def _limit_multi_match(value):
+    if not value:
+        return [], None
+    if len(value) > 5:
+        return value[:5], dbc.Alert("Maximum 5 matches allowed — trimmed to first 5.", color="warning", className="py-1 small")
+    return value, None
+
+
+@callback(
+    Output("ma-multi-paths-store", "data"),
+    Input("ma-multi-match-select", "value"),
+)
+def _update_multi_paths_store(value):
+    return value or []
 
 
 @callback(
@@ -909,13 +977,16 @@ def _selected_range_files(competition, season, venue, from_match, to_match) -> l
     return [o["value"] for o in full_opts[lo:hi + 1]]
 
 
-def _load_scope(mode, file_path, competition, season, venue, from_match, to_match):
-    if mode != "Range":
+def _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths=None):
+    if mode == "Multi":
+        file_paths = [fp for fp in (multi_paths or []) if fp][:5]
+    elif mode == "Range":
+        file_paths = _selected_range_files(competition, season, venue, from_match, to_match)
+    else:
         data, meta, events = _load(file_path)
         payloads = [(file_path, meta, events)] if meta is not None and events is not None else []
         return payloads
 
-    file_paths = _selected_range_files(competition, season, venue, from_match, to_match)
     payloads = []
     for fp in file_paths:
         data, meta, events = _load(fp)
@@ -1083,17 +1154,18 @@ def _phase_filter_passes(passes, events, team_id, phase):
     Input("ma-venue", "value"),
     Input("ma-from-match", "value"),
     Input("ma-to-match", "value"),
+    Input("ma-multi-paths-store", "data"),
 )
-def _update_header(mode, file_path, competition, season, venue, from_match, to_match):
-    if mode == "Range":
-        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+def _update_header(mode, file_path, competition, season, venue, from_match, to_match, multi_paths=None):
+    if mode in ("Range", "Multi"):
+        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
         agg = _aggregate_scope_kpis(payloads)
         if not agg:
             return dbc.Alert("Select a valid match range to begin.", color="info"), []
 
         metas = agg["metas"]
         header = dbc.Card(dbc.CardBody([
-            html.H4(f"Range Analysis: {len(metas)} matches", className="mb-1"),
+            html.H4(f"{'Multi-Match' if mode == 'Multi' else 'Range'} Analysis: {len(metas)} matches", className="mb-1"),
             html.P(
                 f"From MD {metas[0].get('week', '?')} to MD {metas[-1].get('week', '?')} · "
                 f"Record {agg['wins']}-{agg['draws']}-{agg['losses']}",
@@ -1170,9 +1242,10 @@ def _update_header(mode, file_path, competition, season, venue, from_match, to_m
     Input("ma-venue", "value"),
     Input("ma-from-match", "value"),
     Input("ma-to-match", "value"),
+    Input("ma-multi-paths-store", "data"),
     Input("ma-phase-focus", "value"),
 )
-def _shot_map(mode, file_path, competition, season, venue, from_match, to_match, phase_focus="All"):
+def _shot_map(mode, file_path, competition, season, venue, from_match, to_match, multi_paths=None, phase_focus="All"):
     _, meta, events = _load(file_path)
 
     def _base():
@@ -1187,8 +1260,8 @@ def _shot_map(mode, file_path, competition, season, venue, from_match, to_match,
                         title="Shot Map")
         return _add_pitch_context_labels(f, full_pitch=True)
 
-    if mode == "Range":
-        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+    if mode in ("Range", "Multi"):
+        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
         if not payloads:
             return _base()
         first_meta, metas, events = _aggregate_scope_events(payloads)
@@ -1236,7 +1309,7 @@ def _shot_map(mode, file_path, competition, season, venue, from_match, to_match,
     _ph = _phase_label(phase_focus)
     _ph_sfx = "" if (phase_focus or "All") == "All" else f" · {_ph}"
     title = (f"{meta['home_team']} vs {meta['away_team']} — Shot Map{_ph_sfx}"
-             if mode != "Range" else f"Match Range Shot Map ({len(payloads)} matches){_ph_sfx}")
+             if mode not in ("Range", "Multi") else f"{'Multi' if mode == 'Multi' else 'Range'} Shot Map ({len(payloads)} matches){_ph_sfx}")
     fig.update_layout(title=title)
 
     if rm_shots.empty and opp_shots.empty:
@@ -1293,8 +1366,9 @@ def _shot_map(mode, file_path, competition, season, venue, from_match, to_match,
     Input("ma-venue", "value"),
     Input("ma-from-match", "value"),
     Input("ma-to-match", "value"),
+    Input("ma-multi-paths-store", "data"),
 )
-def _xg_chart(mode, file_path, competition, season, venue, from_match, to_match):
+def _xg_chart(mode, file_path, competition, season, venue, from_match, to_match, multi_paths=None):
     _, meta, events = _load(file_path)
 
     def _base():
@@ -1302,8 +1376,8 @@ def _xg_chart(mode, file_path, competition, season, venue, from_match, to_match)
         f.update_layout(**_PL, height=_H_COMPARE, title="xG Accumulation")
         return f
 
-    if mode == "Range":
-        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+    if mode in ("Range", "Multi"):
+        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
         if not payloads:
             return _base()
         fig = go.Figure()
@@ -1383,12 +1457,13 @@ def _xg_chart(mode, file_path, competition, season, venue, from_match, to_match)
     Input("ma-venue", "value"),
     Input("ma-from-match", "value"),
     Input("ma-to-match", "value"),
+    Input("ma-multi-paths-store", "data"),
 )
-def _tactical_bars(mode, file_path, competition, season, venue, from_match, to_match):
+def _tactical_bars(mode, file_path, competition, season, venue, from_match, to_match, multi_paths=None):
     _, meta, events = _load(file_path)
 
-    if mode == "Range":
-        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+    if mode in ("Range", "Multi"):
+        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
         if not payloads:
             return go.Figure().update_layout(**_PL, height=_H_COMPARE, title="Tactical Stats Comparison")
         rm_avgs = np.zeros(6)
@@ -1456,9 +1531,10 @@ def _tactical_bars(mode, file_path, competition, season, venue, from_match, to_m
     Input("ma-venue", "value"),
     Input("ma-from-match", "value"),
     Input("ma-to-match", "value"),
+    Input("ma-multi-paths-store", "data"),
     Input("ma-phase-focus", "value"),
 )
-def _pass_map(mode, file_path, competition, season, venue, from_match, to_match, phase_focus="All"):
+def _pass_map(mode, file_path, competition, season, venue, from_match, to_match, multi_paths=None, phase_focus="All"):
     _, meta, events = _load(file_path)
 
     def _base():
@@ -1473,8 +1549,8 @@ def _pass_map(mode, file_path, competition, season, venue, from_match, to_match,
                         title="Pass Map")
         return _add_pitch_context_labels(f, full_pitch=True)
 
-    if mode == "Range":
-        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+    if mode in ("Range", "Multi"):
+        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
         if not payloads:
             return _base()
         meta, metas, events = _aggregate_scope_events(payloads)
@@ -1520,7 +1596,7 @@ def _pass_map(mode, file_path, competition, season, venue, from_match, to_match,
         )
 
     fig = _base()
-    fig.update_layout(title=("Real Madrid Pass Map" + _ph_sfx if mode != "Range" else f"Real Madrid Pass Map ({len(payloads)} matches){_ph_sfx}"))
+    fig.update_layout(title=("Real Madrid Pass Map" + _ph_sfx if mode not in ("Range", "Multi") else f"Real Madrid Pass Map ({len(payloads)} matches){_ph_sfx}"))
     if not success.empty:
         fig.add_trace(_lines_trace(success, _RM,  "Completed",  0.65))
     if not fail.empty:
@@ -1547,10 +1623,11 @@ def _pass_map(mode, file_path, competition, season, venue, from_match, to_match,
     Input("ma-venue", "value"),
     Input("ma-from-match", "value"),
     Input("ma-to-match", "value"),
+    Input("ma-multi-paths-store", "data"),
     Input("ma-network-scope", "value"),
     Input("ma-phase-focus", "value"),
 )
-def _pass_network(mode, file_path, competition, season, venue, from_match, to_match, scope="xi", phase_focus="All"):
+def _pass_network(mode, file_path, competition, season, venue, from_match, to_match, multi_paths=None, scope="xi", phase_focus="All"):
     _, meta, events = _load(file_path)
     scope = scope or "xi"
 
@@ -1566,10 +1643,10 @@ def _pass_network(mode, file_path, competition, season, venue, from_match, to_ma
         showlegend=False,
     )
 
-    if mode == "Range":
-        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+    if mode in ("Range", "Multi"):
+        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
         if not payloads:
-            fig.add_annotation(text="Select a valid range for pass-network analysis.", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+            fig.add_annotation(text="Select matches for pass-network analysis.", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
             return fig
         meta, _, events = _aggregate_scope_events(payloads)
 
@@ -1590,12 +1667,12 @@ def _pass_network(mode, file_path, competition, season, venue, from_match, to_ma
     # Starting-XI view restricts to the 11 starters; Full Match shows up to 14.
     starter_names = None
     max_players = 14
-    if scope == "xi" and mode != "Range":
+    if scope == "xi" and mode not in ("Range", "Multi"):
         lineup = get_match_lineup_status(events, meta["rm_id"])
         starter_names = {p for p, s in lineup.items() if s == "Starting 11"}
         max_players = 11
     nodes, edges = _build_pass_network(
-        events, meta["rm_id"], min_edge_count=(3 if mode == "Range" else 2),
+        events, meta["rm_id"], min_edge_count=(3 if mode in ("Range", "Multi") else 2),
         starter_names=starter_names, max_players=max_players,
     )
     if nodes.empty or edges.empty:
@@ -1645,7 +1722,7 @@ def _pass_network(mode, file_path, competition, season, venue, from_match, to_ma
         hovertemplate="%{customdata[0]}<br>Network involvement: %{customdata[1]:.0f}<br>Touches: %{customdata[2]:.0f}<extra></extra>",
     ))
 
-    if mode == "Range":
+    if mode in ("Range", "Multi"):
         suffix = f" · {len(payloads)} matches (full squad)"
     else:
         suffix = " · Starting XI" if scope == "xi" else " · Full match squad"
@@ -1669,8 +1746,9 @@ def _pass_network(mode, file_path, competition, season, venue, from_match, to_ma
     Input("ma-venue", "value"),
     Input("ma-from-match", "value"),
     Input("ma-to-match", "value"),
+    Input("ma-multi-paths-store", "data"),
 )
-def _shot_zone_map(mode, file_path, competition, season, venue, from_match, to_match):
+def _shot_zone_map(mode, file_path, competition, season, venue, from_match, to_match, multi_paths=None):
     _, meta, events = _load(file_path)
 
     fig = go.Figure()
@@ -1684,10 +1762,10 @@ def _shot_zone_map(mode, file_path, competition, season, venue, from_match, to_m
         title="Shot Zone Map (Real Madrid)",
     )
 
-    if mode == "Range":
-        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+    if mode in ("Range", "Multi"):
+        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
         if not payloads:
-            fig.add_annotation(text="Select a valid range for shot-zone analysis.", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+            fig.add_annotation(text="Select matches for shot-zone analysis.", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
             return fig
         meta, _, events = _aggregate_scope_events(payloads)
 
@@ -1767,7 +1845,7 @@ def _shot_zone_map(mode, file_path, competition, season, venue, from_match, to_m
         hovertemplate="x=%{x:.1f}, y=%{y:.1f}<extra></extra>",
     ))
 
-    suffix = f" ({len(payloads)} matches)" if mode == "Range" else ""
+    suffix = f" ({len(payloads)} matches)" if mode in ("Range", "Multi") else ""
     fig.update_layout(title=f"Real Madrid Shot Zone Map{suffix}")
     fig.add_annotation(
         text=f"Zone value = % of RM shots in zone (rounded) · Total shots: {int(total)}",
@@ -1911,7 +1989,7 @@ def _lineup_pitch(mode, file_path):
         title="Starting XIs",
     )
 
-    if mode == "Range":
+    if mode in ("Range", "Multi"):
         fig.add_annotation(text="Starting XI positions are available only in Single Match mode.", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
         return fig
     if meta is None or events is None or events.empty:
@@ -1960,12 +2038,13 @@ def _lineup_pitch(mode, file_path):
     Input("ma-venue", "value"),
     Input("ma-from-match", "value"),
     Input("ma-to-match", "value"),
+    Input("ma-multi-paths-store", "data"),
 )
-def _player_table(mode, file_path, lineup_filter, competition, season, venue, from_match, to_match):
-    if mode == "Range":
-        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+def _player_table(mode, file_path, lineup_filter, competition, season, venue, from_match, to_match, multi_paths=None):
+    if mode in ("Range", "Multi"):
+        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
         if not payloads:
-            return dbc.Alert("Select a match range to see aggregated player stats.", color="info")
+            return dbc.Alert("Select matches to see aggregated player stats.", color="info")
         frames = []
         for _, m, ev in payloads:
             df = get_player_stats(ev, m["rm_id"])
@@ -1974,7 +2053,7 @@ def _player_table(mode, file_path, lineup_filter, competition, season, venue, fr
         if not frames:
             return dbc.Alert("No player data available.", color="warning")
         df = pd.concat(frames, ignore_index=True).groupby(["player_id", "player_name"], as_index=False).sum(numeric_only=True)
-        df["Status"] = "Range Aggregate"
+        df["Status"] = f"{'Multi' if mode == 'Multi' else 'Range'} Aggregate"
     else:
         _, meta, events = _load(file_path)
         if meta is None:
@@ -2042,8 +2121,9 @@ def _player_table(mode, file_path, lineup_filter, competition, season, venue, fr
     Input("ma-venue", "value"),
     Input("ma-from-match", "value"),
     Input("ma-to-match", "value"),
+    Input("ma-multi-paths-store", "data"),
 )
-def _subphase_chart(mode, file_path, competition, season, venue, from_match, to_match):
+def _subphase_chart(mode, file_path, competition, season, venue, from_match, to_match, multi_paths=None):
     _PHASE_FULL = {
         "A": "A – Offensive Moment",
         "B": "B – Defensive Transition",
@@ -2062,10 +2142,10 @@ def _subphase_chart(mode, file_path, competition, season, venue, from_match, to_
         return f
 
     try:
-        if mode == "Range":
-            payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+        if mode in ("Range", "Multi"):
+            payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
             if not payloads:
-                return _empty_fig("A/B/C/D Phase Snapshot — select a range")
+                return _empty_fig("A/B/C/D Phase Snapshot — select matches")
             score_rows = []
             for _, m, ev in payloads:
                 score_rows.append(phase_scores_from_events(ev, m["rm_id"], m["opp_id"]))
@@ -2130,7 +2210,7 @@ def _subphase_chart(mode, file_path, competition, season, venue, from_match, to_
     return fig
 
 
-def _subphase_radar(mode, file_path, competition, season, venue, from_match, to_match):
+def _subphase_radar(mode, file_path, competition, season, venue, from_match, to_match, multi_paths=None):
     """Radar (Scatterpolar) view of the four A/B/C/D tactical-phase scores.
 
     Reuses the exact same phase computation as ``_subphase_chart``
@@ -2148,10 +2228,10 @@ def _subphase_radar(mode, file_path, competition, season, venue, from_match, to_
         return f
 
     try:
-        if mode == "Range":
-            payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+        if mode in ("Range", "Multi"):
+            payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
             if not payloads:
-                return _empty("Tactical Phase Profile — select a range")
+                return _empty("Tactical Phase Profile — select matches")
             scores = pd.DataFrame(
                 [phase_scores_from_events(ev, m["rm_id"], m["opp_id"]) for _, m, ev in payloads]
             ).mean().to_dict()
@@ -2268,9 +2348,10 @@ def _calc_setpieces_single(events: pd.DataFrame, meta: dict, win_sec: int = 35) 
     Input("ma-venue", "value"),
     Input("ma-from-match", "value"),
     Input("ma-to-match", "value"),
+    Input("ma-multi-paths-store", "data"),
     Input("ma-phase-focus", "value"),
 )
-def _transition_chart(mode, file_path, competition, season, venue, from_match, to_match, phase_focus):
+def _transition_chart(mode, file_path, competition, season, venue, from_match, to_match, multi_paths=None, phase_focus=None):
     from plotly.subplots import make_subplots
 
     _BASE = dict(
@@ -2281,13 +2362,13 @@ def _transition_chart(mode, file_path, competition, season, venue, from_match, t
                     xanchor="center", x=0.5),
     )
 
-    # ── Range mode ────────────────────────────────────────────────────────────
-    if mode == "Range":
-        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+    # ── Range / Multi mode ───────────────────────────────────────────────────
+    if mode in ("Range", "Multi"):
+        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
         if not payloads:
             fig = go.Figure()
             fig.update_layout(**_BASE, height=_H_CHART + 60,
-                              title="Transition Efficiency — select a range")
+                              title="Transition Efficiency — select matches")
             return fig
 
         labels, n_vals, xg_vals, t_vals = [], [], [], []
@@ -2435,9 +2516,10 @@ def _transition_chart(mode, file_path, competition, season, venue, from_match, t
     Input("ma-venue", "value"),
     Input("ma-from-match", "value"),
     Input("ma-to-match", "value"),
+    Input("ma-multi-paths-store", "data"),
     Input("ma-phase-focus", "value"),
 )
-def _setpiece_chart(mode, file_path, competition, season, venue, from_match, to_match, phase_focus):
+def _setpiece_chart(mode, file_path, competition, season, venue, from_match, to_match, multi_paths=None, phase_focus=None):
     from plotly.subplots import make_subplots
 
     _BASE = dict(
@@ -2462,9 +2544,9 @@ def _setpiece_chart(mode, file_path, competition, season, venue, from_match, to_
             active = [("No corners", 1, "#90a4ae")]
         return zip(*active)
 
-    # ── Range mode ────────────────────────────────────────────────────────────
-    if mode == "Range":
-        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+    # ── Range / Multi mode ────────────────────────────────────────────────────
+    if mode in ("Range", "Multi"):
+        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
         if not payloads:
             fig = go.Figure()
             fig.update_layout(**_BASE, height=_H_CHART + 40,
@@ -2791,8 +2873,9 @@ def _full_pitch_traces():
     Input("ma-venue", "value"),
     Input("ma-from-match", "value"),
     Input("ma-to-match", "value"),
+    Input("ma-multi-paths-store", "data"),
 )
-def _gk_distribution(file_path, mode, competition, season, venue, from_match, to_match):
+def _gk_distribution(file_path, mode, competition, season, venue, from_match, to_match, multi_paths=None):
     from plotly.subplots import make_subplots
 
     def _empty():
@@ -2805,8 +2888,8 @@ def _gk_distribution(file_path, mode, competition, season, venue, from_match, to
                            xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
         return fig
 
-    if mode == "Range":
-        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+    if mode in ("Range", "Multi"):
+        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
         if not payloads:
             return _empty()
         meta, _, events = _aggregate_scope_events(payloads)
@@ -2964,8 +3047,9 @@ def _gk_distribution(file_path, mode, competition, season, venue, from_match, to
     Input("ma-venue", "value"),
     Input("ma-from-match", "value"),
     Input("ma-to-match", "value"),
+    Input("ma-multi-paths-store", "data"),
 )
-def _crossing_patterns(file_path, mode, competition, season, venue, from_match, to_match):
+def _crossing_patterns(file_path, mode, competition, season, venue, from_match, to_match, multi_paths=None):
     from plotly.subplots import make_subplots
 
     def _empty_fig(title="Crossing Patterns"):
@@ -2986,8 +3070,8 @@ def _crossing_patterns(file_path, mode, competition, season, venue, from_match, 
         )
         return fig
 
-    if mode == "Range":
-        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+    if mode in ("Range", "Multi"):
+        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
         if not payloads:
             fig = _empty_fig()
             fig.add_annotation(text="Select a match range.", xref="paper", yref="paper",
@@ -3096,7 +3180,7 @@ def _crossing_patterns(file_path, mode, competition, season, venue, from_match, 
 
     rm_succ  = int((rm_cr["outcome"] == 1).sum()) if not rm_cr.empty else 0
     opp_succ = int((opp_cr["outcome"] == 1).sum()) if not opp_cr.empty else 0
-    suffix   = f" ({len(payloads)} matches)" if mode == "Range" else ""
+    suffix   = f" ({len(payloads)} matches)" if mode in ("Range", "Multi") else ""
 
     fig.update_layout(
         paper_bgcolor=_C["surface"],
@@ -3131,8 +3215,9 @@ def _crossing_patterns(file_path, mode, competition, season, venue, from_match, 
     Input("ma-venue", "value"),
     Input("ma-from-match", "value"),
     Input("ma-to-match", "value"),
+    Input("ma-multi-paths-store", "data"),
 )
-def _goalmouth_map(file_path, mode, competition, season, venue, from_match, to_match):
+def _goalmouth_map(file_path, mode, competition, season, venue, from_match, to_match, multi_paths=None):
     from plotly.subplots import make_subplots
 
     # Goal frame dimensions (data units)
@@ -3147,13 +3232,12 @@ def _goalmouth_map(file_path, mode, competition, season, venue, from_match, to_m
                            xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
         return fig
 
-    if mode == "Range":
-        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+    if mode in ("Range", "Multi"):
+        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
         if not payloads:
             return _empty()
         meta, _, events = _aggregate_scope_events(payloads)
-        file_paths_list = _selected_range_files(
-            competition or "LaLiga", season or "2025-2026", venue or "All", from_match, to_match)
+        file_paths_list = [fp for fp, _, _ in payloads]
     else:
         data, meta, events = _load(file_path)
         file_paths_list = [file_path] if file_path else []
@@ -3221,7 +3305,7 @@ def _goalmouth_map(file_path, mode, competition, season, venue, from_match, to_m
     opp_data = _build_shot_data(opp_shots)
 
     rm_name = _rm_team_name(meta)
-    suffix  = f" ({len(payloads)} matches)" if mode == "Range" else ""
+    suffix  = f" ({len(payloads)} matches)" if mode in ("Range", "Multi") else ""
 
     fig = make_subplots(
         rows=1, cols=2,
@@ -3359,8 +3443,9 @@ _ZONE14_Y0, _ZONE14_Y1 = 30.0, 70.0
     Input("ma-venue", "value"),
     Input("ma-from-match", "value"),
     Input("ma-to-match", "value"),
+    Input("ma-multi-paths-store", "data"),
 )
-def _zone14_passing(file_path, mode, competition, season, venue, from_match, to_match):
+def _zone14_passing(file_path, mode, competition, season, venue, from_match, to_match, multi_paths=None):
 
     def _base():
         fig = go.Figure()
@@ -3380,8 +3465,8 @@ def _zone14_passing(file_path, mode, competition, season, venue, from_match, to_
         )
         return fig
 
-    if mode == "Range":
-        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+    if mode in ("Range", "Multi"):
+        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
         if not payloads:
             return _base()
         meta, _, events = _aggregate_scope_events(payloads)
@@ -3412,7 +3497,7 @@ def _zone14_passing(file_path, mode, competition, season, venue, from_match, to_
     ]
 
     rm_name = _rm_team_name(meta)
-    suffix  = f" ({len(payloads)} matches)" if mode == "Range" else ""
+    suffix  = f" ({len(payloads)} matches)" if mode in ("Range", "Multi") else ""
     fig = _base()
     fig.update_layout(title=dict(text=f"{rm_name} — Zone 14 Passing{suffix}",
                                  x=0.5, xanchor="center", font=dict(size=14)))
@@ -3496,8 +3581,9 @@ def _zone14_passing(file_path, mode, competition, season, venue, from_match, to_
     Input("ma-venue", "value"),
     Input("ma-from-match", "value"),
     Input("ma-to-match", "value"),
+    Input("ma-multi-paths-store", "data"),
 )
-def _defensive_actions(file_path, mode, competition, season, venue, from_match, to_match):
+def _defensive_actions(file_path, mode, competition, season, venue, from_match, to_match, multi_paths=None):
 
     def _base():
         fig = go.Figure()
@@ -3517,8 +3603,8 @@ def _defensive_actions(file_path, mode, competition, season, venue, from_match, 
         )
         return _add_pitch_context_labels(fig, full_pitch=True)
 
-    if mode == "Range":
-        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+    if mode in ("Range", "Multi"):
+        payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
         if not payloads:
             return _base()
         meta, _, events = _aggregate_scope_events(payloads)
@@ -3547,7 +3633,7 @@ def _defensive_actions(file_path, mode, competition, season, venue, from_match, 
     opp_def = _def_events(meta["opp_id"], mirror=True)
 
     rm_name = _rm_team_name(meta)
-    suffix  = f" ({len(payloads)} matches)" if mode == "Range" else ""
+    suffix  = f" ({len(payloads)} matches)" if mode in ("Range", "Multi") else ""
 
     fig = _base()
     fig.update_layout(title=dict(text=f"Defensive Actions Map{suffix}",
@@ -3640,6 +3726,7 @@ _MA2_MATCH_INPUTS = [
     Input("ma-venue", "value"),
     Input("ma-from-match", "value"),
     Input("ma-to-match", "value"),
+    Input("ma-multi-paths-store", "data"),
 ]
 _MA2_ADV_INPUTS = [
     Input("ma2-period-filter", "value"),
@@ -3653,8 +3740,8 @@ _MA2_ADV_INPUTS = [
     *_MA2_ADV_INPUTS,
 )
 def _pass_receive_heatmap(mode, file_path, competition, season, venue,
-                          from_match, to_match, period, time_range):
-    payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+                          from_match, to_match, multi_paths, period, time_range):
+    payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
     empty = go.Figure()
     empty.update_layout(**_PL, height=_H_PITCH, title="No data")
     if not payloads:
@@ -3710,8 +3797,8 @@ def _pass_receive_heatmap(mode, file_path, competition, season, venue,
     *_MA2_ADV_INPUTS,
 )
 def _chance_creation_heatmap(mode, file_path, competition, season, venue,
-                              from_match, to_match, period, time_range):
-    payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+                              from_match, to_match, multi_paths, period, time_range):
+    payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
     empty = go.Figure()
     empty.update_layout(**_PL, height=_H_PITCH, title="No data")
     if not payloads:
@@ -3788,8 +3875,8 @@ def _chance_creation_heatmap(mode, file_path, competition, season, venue,
     *_MA2_ADV_INPUTS,
 )
 def _progressive_passes_chart(mode, file_path, competition, season, venue,
-                               from_match, to_match, period, time_range):
-    payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+                               from_match, to_match, multi_paths, period, time_range):
+    payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
     empty = go.Figure()
     empty.update_layout(**_PL, height=_H_PITCH, title="No data")
     if not payloads:
@@ -3943,8 +4030,8 @@ def _penalty_analysis(competition, season):
     *_MA2_ADV_INPUTS,
 )
 def _chance_creator_chart(mode, file_path, competition, season, venue,
-                           from_match, to_match, period, time_range):
-    payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+                           from_match, to_match, multi_paths, period, time_range):
+    payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
     empty = go.Figure()
     empty.update_layout(**_PL, height=_H_CHART, title="No data")
     if not payloads:
@@ -3998,8 +4085,8 @@ def _chance_creator_chart(mode, file_path, competition, season, venue,
     Output("ma2-team-radar", "figure"),
     *_MA2_MATCH_INPUTS,
 )
-def _team_radar(mode, file_path, competition, season, venue, from_match, to_match):
-    payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+def _team_radar(mode, file_path, competition, season, venue, from_match, to_match, multi_paths=None):
+    payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
     empty = go.Figure()
     empty.update_layout(height=_H_PITCH, paper_bgcolor=_C["surface"], title="No data")
     if not payloads:
@@ -4104,8 +4191,8 @@ def _team_radar(mode, file_path, competition, season, venue, from_match, to_matc
     *_MA2_ADV_INPUTS,
 )
 def _buildup_network(mode, file_path, competition, season, venue,
-                     from_match, to_match, period, time_range):
-    payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+                     from_match, to_match, multi_paths, period, time_range):
+    payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
     empty = go.Figure()
     empty.update_layout(**_PL, height=_H_PITCH, title="No data")
     if not payloads:
@@ -4170,8 +4257,8 @@ def _buildup_network(mode, file_path, competition, season, venue,
     *_MA2_ADV_INPUTS,
 )
 def _final_third_entries(mode, file_path, competition, season, venue,
-                          from_match, to_match, period, time_range):
-    payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+                          from_match, to_match, multi_paths, period, time_range):
+    payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
     empty = go.Figure()
     empty.update_layout(**_PL, height=_H_PITCH, title="No data")
     if not payloads:
@@ -4262,8 +4349,8 @@ def _final_third_entries(mode, file_path, competition, season, venue,
     Input("ma2-transition-window", "value"),
 )
 def _extended_transition(mode, file_path, competition, season, venue,
-                          from_match, to_match, window_secs):
-    payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match)
+                          from_match, to_match, multi_paths, window_secs):
+    payloads = _load_scope(mode, file_path, competition, season, venue, from_match, to_match, multi_paths)
     empty = go.Figure()
     empty.update_layout(**_PL, height=_H_CHART, title="No data")
     if not payloads:
