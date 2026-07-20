@@ -41,14 +41,17 @@ TOP_PLAYERS = [
     ('J. Bellingham',    'AMW',  5,  4, 26,  7.87,  49),
     ('A. Güler',         'DM',   4,  9, 32,  3.36,  50),
 ]
+# Icons use monochrome geometric glyphs (all present in DejaVu Sans, the font
+# matplotlib bundles) instead of colour emoji, which render as blank "tofu"
+# boxes because no emoji glyphs exist in the default font.
 MODULES = [
-    ('Season Overview',  '📊', 'Season KPIs · win/loss record\nAll-Matches table · trends'),
-    ('Match Analysis',   '⚽', 'Shot maps · xG accumulation\nPass networks · tactical bars'),
-    ('Player Analysis',  '👤', 'Squad table · Min% slider\nMulti-radar · per-match stats'),
-    ('Tactical Phases',  '⚔️', 'Pressing maps · PPDA trend\nPhase-by-phase event analysis'),
-    ('Opponent Scout',   '🔭', 'Opposition pass maps\nDefensive shape · set pieces'),
-    ('Benchmarking',     '📈', 'Cross-competition charts\nGoal & pass accuracy trends'),
-    ('Analysis Report',  '📋', 'Auto-generated PDF / DOCX\nfrom real match data only'),
+    ('Season Overview',  '▣', 'Season KPIs · win/loss record\nAll-Matches table · trends'),
+    ('Match Analysis',   '●', 'Shot maps · xG accumulation\nPass networks · tactical bars'),
+    ('Player Analysis',  '◆', 'Squad table · Min% slider\nMulti-radar · per-match stats'),
+    ('Tactical Phases',  '✦', 'Pressing maps · PPDA trend\nPhase-by-phase event analysis'),
+    ('Opponent Scout',   '◉', 'Opposition pass maps\nDefensive shape · set pieces'),
+    ('Benchmarking',     '▲', 'Cross-competition charts\nGoal & pass accuracy trends'),
+    ('Analysis Report',  '▮', 'Auto-generated PDF / DOCX\nfrom real match data only'),
 ]
 
 # ── Figure ──────────────────────────────────────────────────────────────────
@@ -170,7 +173,7 @@ comp_card(.3, 20.65, 6.9, 5.65,
      ('xG For',          '66.01',      BLUE),
      ('xG Against',      '38.57',      RED),
      ('xG Diff.',        '+27.44',     GREEN)],
-    '🏆  LaLiga Champions 2025–26')
+    '★  LaLiga Champions 2025–26')
 
 comp_card(7.5, 20.65, 6.9, 5.65,
     'UEFA Champions League 2025–26', '#1a56db',
@@ -185,7 +188,7 @@ comp_card(7.5, 20.65, 6.9, 5.65,
      ('xG For',          '21.28',       BLUE),
      ('xG Against',      '18.27',       RED),
      ('xG Diff.',        '+3.01',       GREEN)],
-    '⭐  UCL 2025–26 Campaign')
+    '★  UCL 2025–26 Campaign')
 
 comp_card(14.7, 20.65, 6.9, 5.65,
     'Copa del Rey 2025–26', AMBER,
@@ -230,7 +233,9 @@ for idx, (title, icon, desc) in enumerate(MODULES):
                    fc='none', ec=LGREY, lw=1, transform=max_.transAxes))
     max_.add_patch(FancyBboxPatch((0,.82), 1, .18, boxstyle='square,pad=0',
                    fc=NAVY, ec='none', transform=max_.transAxes))
-    t(max_, .5, .91, f'{icon}  {title}', ha='center', va='center',
+    t(max_, .07, .91, icon, ha='left', va='center',
+      fontsize=11, fontweight='bold', color=GOLD)
+    t(max_, .55, .91, title, ha='center', va='center',
       fontsize=8.5, fontweight='bold', color=WHITE)
     t(max_, .5, .45, desc, ha='center', va='center',
       fontsize=7.8, color=GREY, multialignment='center', linespacing=1.65)
